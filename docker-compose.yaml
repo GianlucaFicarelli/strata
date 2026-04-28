@@ -1,0 +1,68 @@
+# Strata — local development / self-hosted production stack
+#
+# Services:
+#   strata      — the main application (backend + frontend)
+#   collabora   — Collabora Online for .docx/.xlsx editing (optional)
+#
+# Usage:
+#   docker compose up                   # start everything
+#   docker compose up strata            # start without Collabora
+#   docker compose up --build           # rebuild images first
+#   STRATA_LOCAL_ROOT=/my/files docker compose up
+
+services:
+  strata:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: strata:latest
+    container_name: strata
+    ports:
+      - "${STRATA_PORT:-8000}:8000"
+    volumes:
+      # The directory exposed by the local storage backend
+      - "${STRATA_LOCAL_ROOT:-./data}:/data"
+    environment:
+      STRATA_LOCAL_ROOT: /data
+      STRATA_COLLABORA_URL: http://collabora:9980
+      STRATA_COLLABORA_SECRET: "${STRATA_COLLABORA_SECRET:-change-me-in-production}"
+      STRATA_S3_BUCKET: "${STRATA_S3_BUCKET:-}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+    depends_on:
+      collabora:
+        condition: service_healthy
+        required: false   # Strata starts even if Collabora is disabled
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/backends')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  collabora:
+    # Run `docker compose --profile collabora up` to enable this service.
+    # Requires a Collabora Online license for production use; the
+    # development/CODE image is free for local testing.
+    profiles: ["collabora"]
+    image: collabora/code:latest
+    container_name: strata-collabora
+    ports:
+      - "${COLLABORA_PORT:-9980}:9980"
+    environment:
+      # Allow Strata to be the WOPI host
+      aliasgroup1: "http://strata:8000"
+      DONT_GEN_SSL_CERT: "YES"
+      server_name: "localhost:9980"
+    cap_add:
+      - MKNOD
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9980/hosting/discovery"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

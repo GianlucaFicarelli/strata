@@ -1,0 +1,52 @@
+[project]
+name = "strata"
+version = "0.1.0"
+description = "Strata file browser backend"
+requires-python = ">=3.14"
+dependencies = [
+    "aiofiles>=24.1",
+    "fastapi>=0.115",
+    "pydantic>=2.13.3",
+    "pydantic-settings>=2.14.0",
+    "python-multipart",
+    "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+s3 = ["boto3>=1.34"]
+image = ["Pillow>=10.0"]
+all = ["strata[s3,image]"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/strata"]
+
+[tool.uv]
+required-version = ">=0.9.0"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
+
+[tool.ruff.lint]
+preview = false
+select = ["ALL"]
+ignore = [
+    "COM812", # Trailing comma (to have similar behavior to black)
+    "D104",   # Missing docstring in public package
+    "D107",   # Missing docstring in `__init__`
+    "ERA001", # Found commented-out code
+    "T201",   # `print` found
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.409",
+]
