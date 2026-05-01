@@ -11,19 +11,21 @@ Handled extensions:
     ``.png``, ``.jpg``, ``.jpeg``, ``.gif``, ``.webp``, ``.svg``, ``.bmp``
 """
 
-import os
-from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
+from strata.config import settings
 from strata.plugins.base import BackendPlugin
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 router = APIRouter(prefix="/api/plugins/image_preview", tags=["image_preview"])
 
 _IMAGE_EXTS: frozenset[str] = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"})
-_ROOT: Path = Path(os.environ.get("STRATA_LOCAL_ROOT", Path.home())).resolve()
+_ROOT: Path = settings.LOCAL_ROOT.resolve()
 
 
 @router.get("/thumbnail")

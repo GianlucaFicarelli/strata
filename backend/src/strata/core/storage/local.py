@@ -2,24 +2,20 @@
 
 import contextlib
 import mimetypes
-import os
 import shutil
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import aiofiles
 from fastapi import HTTPException
 
+from strata.config import settings
 from strata.core.storage.base import FileEntry, StorageBackend
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+    from pathlib import Path
 
-#: Root directory exposed by this backend.  Override via the
-#: ``STRATA_LOCAL_ROOT`` environment variable.
-_ROOT: Path = Path(os.environ.get("STRATA_LOCAL_ROOT", Path.home())).resolve()
-
-#: Read chunk size in bytes.
+_ROOT: Path = settings.LOCAL_ROOT.resolve()
 _CHUNK: int = 64 * 1024
 
 

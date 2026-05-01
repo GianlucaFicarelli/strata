@@ -17,9 +17,9 @@ To activate::
     # Drop this package into plugins_enabled/ and restart Strata.
 """
 
-import os
 from typing import TYPE_CHECKING
 
+from strata.config import settings
 from strata.core.storage.base import FileEntry, StorageBackend
 from strata.plugins.base import BackendPlugin
 
@@ -45,8 +45,8 @@ class S3StorageBackend(StorageBackend):
     name: str = "Amazon S3"
 
     def __init__(self) -> None:
-        self.bucket: str = os.environ.get("STRATA_S3_BUCKET", "my-bucket")
-        self.region: str = os.environ.get("AWS_REGION", "us-east-1")
+        self.bucket: str = settings.S3_BUCKET
+        self.region: str = settings.AWS_REGION
         # Production: self._client = boto3.client("s3", region_name=self.region)
 
     async def list(self, path: str) -> list[FileEntry]:

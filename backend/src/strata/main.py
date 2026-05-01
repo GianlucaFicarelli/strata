@@ -4,10 +4,7 @@ Assembles the FastAPI application, discovers plugins, registers storage
 backends, and mounts static assets.
 """
 
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -79,7 +76,7 @@ async def startup() -> None:
        ``/api/plugins/<id>/assets/``.
     4. Calls ``plugin.on_startup()``.
     """
-    plugins = discover_plugins("plugins_enabled")
+    plugins = discover_plugins("strata.plugins_enabled")
 
     for p in plugins:
         # 1. Register storage backend

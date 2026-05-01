@@ -49,30 +49,25 @@ Security note:
 """
 
 import base64
-import os
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import aiofiles
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from strata.config import settings
 from strata.plugins.base import BackendPlugin
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+    from pathlib import Path
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-_COLLABORA_URL: str = os.environ.get(
-    "STRATA_COLLABORA_URL",
-    "https://collabora.example.com",
-).rstrip("/")
-
-_SECRET: str = os.environ.get("STRATA_COLLABORA_SECRET", "change-me-in-production")
-
-_ROOT: Path = Path(os.environ.get("STRATA_LOCAL_ROOT", Path.home())).resolve()
+_COLLABORA_URL: str = settings.COLLABORA_URL
+_SECRET: str = settings.COLLABORA_SECRET
+_ROOT: Path = settings.LOCAL_ROOT.resolve()
 
 _HANDLED_EXTS: list[str] = [
     ".docx",
