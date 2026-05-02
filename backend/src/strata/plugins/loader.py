@@ -1,170 +1,166 @@
 """Plugin discovery and lifecycle management for Strata.
 
-At startup, :func:`discover_and_register` scans the ``strata.plugins_enabled``
-package, loads every sub-package that exposes a valid ``plugin`` attribute,
-calls each plugin's :meth:`~strata.plugins.base.BackendPlugin.register`
-method, and then calls :meth:`~strata.plugins.base.BackendPlugin.on_startup`.
+Plugins are discovered via the ``strata.plugins`` entry point group defined
+in :pep:`517` / :pep:`660` ``pyproject.toml`` files.  Only plugins whose
+entry point *name* appears in :attr:`~strata.config.Settings.ENABLED_PLUGINS`
+are loaded.
 
-At shutdown, :func:`shutdown_all` calls
-:meth:`~strata.plugins.base.BackendPlugin.on_shutdown` on every loaded plugin
-in reverse load order.
+Startup sequence (per plugin)
+------------------------------
+1. Load the entry point to obtain the :class:`~strata.plugins.base.BackendPlugin`
+   instance.
+2. Call :meth:`~strata.plugins.base.BackendPlugin.register` — synchronous,
+   contributes capabilities to the :class:`~strata.plugins.registry.PluginRegistry`.
+3. Call :meth:`~strata.plugins.base.BackendPlugin.on_startup` — async
+   initialisation (connection pools, caches, etc.).
 
-The list of loaded plugins is kept as module-level state so that
-``GET /api/plugins`` can read it without carrying the list through the
-application object.
+Shutdown sequence
+-----------------
+:func:`shutdown_all` calls :meth:`~strata.plugins.base.BackendPlugin.on_shutdown`
+on every loaded plugin in *reverse* load order, mirroring the startup sequence.
+
+Declaring a plugin (in the plugin package's ``pyproject.toml``)::
+
+    [project.entry-points."strata.plugins"]
+    image_preview = "strata_image_preview:plugin"
+
+Enabling a plugin (in Strata's ``.env`` or environment)::
+
+    STRATA_ENABLED_PLUGINS=image_preview,collabora
 """
 
-from __future__ import annotations
-
-import importlib
 import logging
-import pkgutil
-from types import ModuleType
+from importlib.metadata import EntryPoint, entry_points
 
+from strata.config import settings
 from strata.plugins.base import BackendPlugin
 from strata.plugins.registry import PluginRegistry
 
-log = logging.getLogger(__name__)
-
-_PLUGINS_PACKAGE = "strata.plugins_enabled"
-
-# Ordered list of successfully loaded plugins, populated by discover_and_register().
-_loaded: list[BackendPlugin] = []
+L = logging.getLogger(__name__)
 
 
-# ── Internal helpers ──────────────────────────────────────────────────────────
-
-
-def _iter_plugin_modules(package_name: str) -> list[ModuleType]:
-    """Import every sub-module of *package_name* and return those that loaded.
-
-    Modules that raise an exception on import are skipped and logged as
-    errors so that a single broken plugin does not prevent the rest from
-    loading.
+def _discover_entry_points(enabled: list[str]) -> list[EntryPoint]:
+    """Return entry points for enabled plugins in the order they are listed.
 
     Args:
-        package_name: Fully-qualified dotted name of the plugins package,
-            e.g. ``"strata.plugins_enabled"``.
+        enabled: Ordered list of plugin ids to load, e.g.
+            ``["image_preview", "collabora"]``.
 
     Returns:
-        A list of successfully imported ``ModuleType`` objects.
+        The matching :class:`importlib.metadata.EntryPoint` objects in the
+        same order as *enabled*, skipping any ids not found in the installed
+        entry point group.
+    """
+    all_eps: dict[str, EntryPoint] = {
+        ep.name: ep for ep in entry_points(group=settings.ENTRY_POINT_GROUP)
+    }
+    L.warning("Discovered plugins: %s", ", ".join(all_eps))
+    found: list[EntryPoint] = []
+    for plugin_id in enabled:
+        if plugin_id in all_eps:
+            found.append(all_eps[plugin_id])
+        else:
+            L.warning(
+                "Enabled plugin %r not found in entry point group %r — skipping.",
+                plugin_id,
+                settings.ENTRY_POINT_GROUP,
+            )
+    return found
+
+
+def _load_entry_point(ep: EntryPoint) -> BackendPlugin | None:
+    """Load one entry point and return the plugin instance.
+
+    Args:
+        ep: The entry point to load.
+
+    Returns:
+        The :class:`~strata.plugins.base.BackendPlugin` instance, or ``None``
+        if loading fails or the entry point does not point to a valid instance.
     """
     try:
-        pkg = importlib.import_module(package_name)
-    except ModuleNotFoundError:
-        log.warning("Plugin package %r not found — no plugins loaded.", package_name)
-        return []
+        obj = ep.load()
+    except Exception:
+        L.exception("Failed to load entry point %r — skipping.", ep.name)
+        return None
 
-    modules: list[ModuleType] = []
-    for _finder, name, _is_pkg in pkgutil.iter_modules(pkg.__path__):
-        full_name = f"{package_name}.{name}"
-        try:
-            modules.append(importlib.import_module(full_name))
-        except Exception:  # noqa: BLE001
-            log.exception("Failed to import plugin module %r — skipping.", full_name)
+    if not isinstance(obj, BackendPlugin):
+        L.error(
+            "Entry point %r resolved to %r, expected a BackendPlugin instance — skipping.",
+            ep.name,
+            type(obj).__name__,
+        )
+        return None
 
-    return modules
-
-
-def _extract_plugin(module: ModuleType) -> BackendPlugin | None:
-    """Return the ``plugin`` singleton from *module*, or ``None`` if absent.
-
-    A module is considered a valid plugin module if it exposes a top-level
-    attribute named ``plugin`` that is an instance of :class:`BackendPlugin`.
-
-    Args:
-        module: An already-imported module to inspect.
-
-    Returns:
-        The :class:`BackendPlugin` instance, or ``None`` if the module does
-        not export a valid ``plugin`` attribute.
-    """
-    candidate = getattr(module, "plugin", None)
-    if isinstance(candidate, BackendPlugin):
-        return candidate
-    log.debug(
-        "Module %r has no valid `plugin` attribute — skipping.",
-        module.__name__,
-    )
-    return None
+    return obj
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
+class PluginLoader:
+    """Plugin loader."""
 
+    def __init__(self) -> None:
+        self._loaded: list[BackendPlugin] = []
 
-async def discover_and_register(registry: PluginRegistry) -> list[BackendPlugin]:
-    """Discover plugins, register their capabilities, and call their startup hooks.
+    async def load_and_register(
+        self,
+        registry: PluginRegistry,
+        enabled: list[str],
+    ):
+        """Discover, register, and start all enabled plugins.
 
-    This function should be called once during the FastAPI ``startup`` event.
-    It populates the module-level ``_loaded`` list, which is read by
-    :func:`get_loaded_plugins`.
+        This function should be called exactly once during the FastAPI ``startup``
+        event.  It populates the ``_loaded`` list consumed by :meth:`get_loaded_plugins`.
 
-    The loading sequence for each plugin is:
+        Args:
+            registry: The application-wide
+                :class:`~strata.plugins.registry.PluginRegistry` to populate.
+            enabled: Ordered list of plugin ids to load, sourced from
+                :attr:`~strata.config.Settings.ENABLED_PLUGINS`.
 
-    1. Import the plugin module.
-    2. Extract the ``plugin`` singleton.
-    3. Call ``plugin.register(registry)`` — synchronous, contributes capabilities.
-    4. Call ``await plugin.on_startup()`` — asynchronous initialisation.
+        Returns:
+            The list of successfully loaded and started
+            :class:`~strata.plugins.base.BackendPlugin` instances in load order.
+        """
+        self._loaded.clear()
 
-    Args:
-        registry: The application-wide
-            :class:`~strata.plugins.registry.PluginRegistry` to populate.
+        for ep in _discover_entry_points(enabled):
+            plugin = _load_entry_point(ep)
+            if plugin is None:
+                continue
 
-    Returns:
-        The list of successfully loaded :class:`~strata.plugins.base.BackendPlugin`
-        instances in load order.
-    """
-    global _loaded  # noqa: PLW0603
-    _loaded = []
+            try:
+                plugin.register(registry)
+            except Exception:
+                L.exception("Plugin %r raised an exception in register() — skipping.", plugin.id)
+                continue
 
-    for module in _iter_plugin_modules(_PLUGINS_PACKAGE):
-        plugin = _extract_plugin(module)
-        if plugin is None:
-            continue
+            try:
+                await plugin.on_startup()
+            except Exception:
+                L.exception("Plugin %r raised an exception in on_startup() — skipping.", plugin.id)
+                continue
 
-        try:
-            plugin.register(registry)
-        except Exception:  # noqa: BLE001
-            log.exception(
-                "Plugin %r raised an exception in register() — skipping.",
-                plugin.id,
-            )
-            continue
+            self._loaded.append(plugin)
+            L.info("Loaded plugin %r (%s %s)", plugin.id, plugin.name, plugin.version)
 
-        try:
-            await plugin.on_startup()
-        except Exception:  # noqa: BLE001
-            log.exception(
-                "Plugin %r raised an exception in on_startup() — skipping.",
-                plugin.id,
-            )
-            continue
+    async def shutdown_all(self) -> None:
+        """Call ``on_shutdown()`` on every loaded plugin in reverse load order.
 
-        _loaded.append(plugin)
-        log.info("Loaded plugin: %r (%s %s)", plugin.id, plugin.name, plugin.version)
+        Errors in individual plugins are logged but do not interrupt the shutdown
+        of remaining plugins.
+        """
+        for plugin in reversed(self._loaded):
+            try:
+                await plugin.on_shutdown()
+            except Exception:
+                L.exception("Plugin %r raised an exception in on_shutdown().", plugin.id)
+        self._loaded.clear()
 
-    return _loaded
+    def get_loaded_plugins(self) -> list[BackendPlugin]:
+        """Return the list of successfully loaded plugins in load order.
 
-
-async def shutdown_all() -> None:
-    """Call ``on_shutdown()`` on every loaded plugin in reverse load order.
-
-    Errors in individual plugins are logged but do not prevent the remaining
-    plugins from shutting down.
-    """
-    for plugin in reversed(_loaded):
-        try:
-            await plugin.on_shutdown()
-        except Exception:  # noqa: BLE001
-            log.exception("Plugin %r raised an exception in on_shutdown().", plugin.id)
-
-
-def get_loaded_plugins() -> list[BackendPlugin]:
-    """Return the list of successfully loaded plugins.
-
-    Returns:
-        A snapshot of the loaded plugin list in load order.  The list is
-        populated by :func:`discover_and_register` and is empty before that
-        function has been called.
-    """
-    return list(_loaded)
+        Returns:
+            A snapshot of the loaded plugin list.  Empty before
+            :meth:`load_and_register` has been called.
+        """
+        return list(self._loaded)

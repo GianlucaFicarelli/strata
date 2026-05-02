@@ -1,0 +1,31 @@
+[project]
+name = "strata-image-preview"
+version = "0.1.0"
+description = "Image thumbnail and preview plugin for Strata."
+requires-python = ">=3.14"
+dependencies = [
+    "strata>=0.1.0",
+    "fastapi>=0.115",
+    "Pillow>=10.0",
+]
+
+[project.entry-points."strata.plugins"]
+image_preview = "strata_image_preview:plugin"
+
+[tool.uv.sources]
+strata = { workspace = true }
+
+# [build-system]
+# requires = ["hatchling"]
+# build-backend = "hatchling.build"
+
+# [tool.hatch.build.targets.wheel]
+# packages = ["src/strata_image_preview"]
+
+# [tool.ruff]
+# line-length = 100
+# target-version = "py314"
+
+# [tool.pyright]
+# pythonVersion = "3.14"
+# typeCheckingMode = "strict"

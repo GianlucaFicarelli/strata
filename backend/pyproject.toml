@@ -1,52 +1,72 @@
 [project]
 name = "strata"
 version = "0.1.0"
-description = "Strata file browser backend"
+description = "A plugin-based file browser with swappable storage backends."
 requires-python = ">=3.14"
 dependencies = [
-    "aiofiles>=24.1",
     "fastapi>=0.115",
-    "pydantic>=2.13.3",
-    "pydantic-settings>=2.14.0",
-    "python-multipart",
     "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "aiofiles>=24.1",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
 ]
 
 [project.optional-dependencies]
-s3 = ["boto3>=1.34"]
-image = ["Pillow>=10.0"]
-all = ["strata[s3,image]"]
+all = [
+    "strata-image-preview",
+    "strata-local-storage",
+    "strata-smb-storage",
+    "strata-s3-storage",
+    "strata-collabora",
+    "strata-jwt-auth",
+    "strata-search-fulltext",
+]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.11.8,<0.12"]
+build-backend = "uv_build"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/strata"]
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "pyright>=1.1",
+]
 
 [tool.uv]
 required-version = ">=0.9.0"
 
+[tool.uv.sources]
+strata-image-preview = { workspace = true }
+strata-local-storage = { workspace = true }
+strata-smb-storage = { workspace = true }
+strata-s3-storage = { workspace = true }
+strata-collabora = { workspace = true }
+strata-jwt-auth = { workspace = true }
+strata-search-fulltext = { workspace = true }
+
+[tool.uv.workspace]
+members = ["plugins/*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
 
 [tool.ruff.lint]
-preview = false
-select = ["ALL"]
-ignore = [
-    "COM812", # Trailing comma (to have similar behavior to black)
-    "D104",   # Missing docstring in public package
-    "D107",   # Missing docstring in `__init__`
-    "ERA001", # Found commented-out code
-    "T201",   # `print` found
-]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "PTH", "RUF", "PL"]
+ignore = ["PLR2004"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[dependency-groups]
-dev = [
-    "pyright>=1.1.409",
-]
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

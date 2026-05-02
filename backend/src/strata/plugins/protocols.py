@@ -1,38 +1,44 @@
-"""Typed protocols defining the contract for each plugin capability.
+"""Typed protocols defining each plugin capability in Strata.
 
-Each protocol corresponds to one extension point in the system.  A plugin
-contributes to an extension point by passing a conforming object to the
-appropriate method on :class:`~strata.plugins.registry.PluginRegistry`
-inside its :meth:`~strata.plugins.base.BackendPlugin.register` method.
+Each protocol represents one extension point.  A plugin contributes to an
+extension point by passing a conforming object to the appropriate ``add``
+method on :class:`~strata.plugins.registry.PluginRegistry` inside its
+:meth:`~strata.plugins.base.BackendPlugin.register` method.
 
-Protocols are used for *static* type checking only (pyright, mypy).  They
-are **not** used for runtime ``isinstance`` checks — registration is
-explicit and self-describing.
+Protocols are used for *static* type-checking only (pyright, mypy).  Runtime
+dispatch is handled by the registry itself — no ``isinstance`` checks are
+needed in application code.
 
 Extension points
 ----------------
-- :class:`StorageBackend` — a storage backend accessible via ``?backend=<id>``
-- :class:`FileHandler` — a frontend viewer/editor for specific file extensions
-- :class:`RouteProvider` — extra FastAPI routes mounted at startup
-- :class:`FrontendAssets` — a JavaScript ES module loaded by the shell
+:class:`StorageBackend`
+    Provides access to a storage system (filesystem, S3, SMB, …).
+:class:`FileHandler`
+    Provides a frontend viewer or editor for specific file extensions.
+:class:`RouteProvider`
+    Contributes FastAPI routes mounted at application startup.
+:class:`AuthProvider`
+    Provides an authentication method (password, OAuth, LDAP, …).
+:class:`SearchProvider`
+    Provides full-text or metadata search over a storage backend.
+:class:`ThumbProvider`
+    Generates thumbnail images for files on demand.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
-
-from pydantic import BaseModel
 
 
 # ── Shared data models ────────────────────────────────────────────────────────
 
 
 class FileEntry(BaseModel):
-    """Metadata for a single file or directory entry returned by a storage backend.
+    """Metadata for a single file or directory entry.
 
     Attributes:
         name: Bare filename, e.g. ``"report.docx"``.
@@ -52,6 +58,36 @@ class FileEntry(BaseModel):
     mime: str | None = None
 
 
+class AuthUser(BaseModel):
+    """Minimal representation of an authenticated user.
+
+    Attributes:
+        id: Opaque unique identifier for the user.
+        username: Display name or email address.
+        is_admin: ``True`` if the user has administrative privileges.
+    """
+
+    id: str
+    username: str
+    is_admin: bool = False
+
+
+class SearchResult(BaseModel):
+    """A single result returned by a search provider.
+
+    Attributes:
+        entry: The matching file entry.
+        score: Relevance score in the range ``[0.0, 1.0]``.  Higher is more
+            relevant.  ``None`` if the provider does not score results.
+        snippet: A short excerpt from the file showing the match in context.
+            ``None`` if the provider does not support snippets.
+    """
+
+    entry: FileEntry
+    score: float | None = None
+    snippet: str | None = None
+
+
 # ── Capability protocols ──────────────────────────────────────────────────────
 
 
@@ -59,10 +95,10 @@ class FileEntry(BaseModel):
 class StorageBackend(Protocol):
     """Protocol for objects that provide access to a storage system.
 
-    All paths are backend-relative strings that begin with ``"/"``, e.g.
+    All paths are backend-relative strings starting with ``"/"``, e.g.
     ``"/photos/cat.jpg"``.  Implementations translate these to whatever
-    addressing scheme the underlying system uses (filesystem paths, S3
-    object keys, SFTP paths, etc.).
+    addressing scheme the underlying system uses (filesystem paths, S3 keys,
+    SMB UNC paths, etc.).
 
     Attributes:
         id: Unique snake_case identifier used as the ``?backend=`` query
@@ -95,7 +131,7 @@ class StorageBackend(Protocol):
             path: Backend-relative file path.
 
         Returns:
-            An async generator that yields ``bytes`` chunks.
+            An async generator yielding ``bytes`` chunks.
 
         Raises:
             HTTPException: 404 if the file does not exist.
@@ -142,11 +178,10 @@ class StorageBackend(Protocol):
         """
         ...
 
-    def describe(self) -> dict[str, object]:
+    def describe(self) -> dict[str, Any]:
         """Return a JSON-serialisable summary of this backend.
 
-        Used by ``GET /api/backends`` to advertise available backends to
-        the frontend UI.
+        Used by ``GET /api/backends`` to populate the frontend backend picker.
 
         Returns:
             A dict with at least ``"id"`` and ``"name"`` keys.
@@ -159,18 +194,15 @@ class FileHandler(Protocol):
     """Protocol for objects that handle specific file types in the frontend.
 
     A ``FileHandler`` declares which file extensions it can render and
-    provides the URL of the JavaScript ES module that implements the UI.
-    The module must export a ``register(registry)`` function.
-
-    A plugin may also expose additional API routes (e.g. a thumbnail
-    endpoint or a WOPI host) by *also* contributing a :class:`RouteProvider`
-    to the registry inside the same ``register()`` call.
+    provides the server-relative URL of the JavaScript ES module that
+    implements the viewer or editor component.  The module must export a
+    ``register(registry)`` function.
 
     Attributes:
-        handles: File extensions this handler covers, lower-cased and
-            including the leading dot, e.g. ``[".docx", ".xlsx"]``.
-        frontend_module: Server-relative URL of the JS ES module,
-            e.g. ``"/api/plugins/image_preview/assets/main.js"``.
+        handles: Lower-cased extensions including the leading dot, e.g.
+            ``[".docx", ".xlsx"]``.
+        frontend_module: Server-relative URL of the JS ES module, e.g.
+            ``"/api/plugins/image_preview/assets/main.js"``.
     """
 
     handles: list[str]
@@ -183,13 +215,149 @@ class RouteProvider(Protocol):
 
     The router returned by :meth:`get_router` is mounted onto the FastAPI
     application at startup.  Use this for plugin-specific API endpoints such
-    as thumbnail generators, WOPI hosts, or any other custom HTTP handler.
+    as thumbnail generators, WOPI hosts, or custom webhooks.
     """
 
     def get_router(self) -> APIRouter:
-        """Return a FastAPI ``APIRouter`` containing this plugin's routes.
+        """Return a FastAPI ``APIRouter`` containing this provider's routes.
 
         Returns:
-            A configured ``APIRouter`` instance.
+            A configured ``fastapi.APIRouter`` instance.
+        """
+        ...
+
+
+@runtime_checkable
+class AuthProvider(Protocol):
+    """Protocol for objects that authenticate users.
+
+    An ``AuthProvider`` verifies credentials and returns an
+    :class:`AuthUser`.  Multiple providers can coexist (e.g. local password
+    auth alongside LDAP); the registry tries them in registration order.
+
+    Attributes:
+        id: Unique snake_case identifier, e.g. ``"password"`` or ``"ldap"``.
+        name: Human-readable name shown in the login UI.
+    """
+
+    id: str
+    name: str
+
+    async def authenticate(self, credentials: dict[str, str]) -> AuthUser | None:
+        """Attempt to authenticate a user from the given credentials.
+
+        Args:
+            credentials: A dict of credential fields, e.g.
+                ``{"username": "alice", "password": "secret"}``.  The exact
+                keys depend on the provider.
+
+        Returns:
+            An :class:`AuthUser` if authentication succeeded, or ``None``
+            if the credentials were not recognised by this provider.
+
+        Raises:
+            HTTPException: 401 if credentials were recognised but invalid
+                (wrong password). Return ``None`` — do not raise — if the
+                provider simply does not handle these credentials.
+        """
+        ...
+
+
+@runtime_checkable
+class SearchProvider(Protocol):
+    """Protocol for objects that provide search over a storage backend.
+
+    A ``SearchProvider`` is tied to a specific storage backend (matched by
+    :attr:`backend_id`) and indexes or queries that backend's contents.
+
+    Attributes:
+        backend_id: The ``id`` of the :class:`StorageBackend` this provider
+            searches, e.g. ``"local"``.
+    """
+
+    backend_id: str
+
+    async def search(
+        self,
+        query: str,
+        path: str = "/",
+        *,
+        limit: int = 50,
+    ) -> list[SearchResult]:
+        """Search for files matching *query* under *path*.
+
+        Args:
+            query: Free-text or structured query string.
+            path: Backend-relative directory to restrict the search to.
+                Defaults to the root.
+            limit: Maximum number of results to return.
+
+        Returns:
+            A list of :class:`SearchResult` objects sorted by descending
+            relevance score.
+        """
+        ...
+
+    async def index(self, entry: FileEntry, content: AsyncIterator[bytes]) -> None:
+        """Index a file so that it appears in future search results.
+
+        Called automatically by the file write pipeline when search indexing
+        is enabled.  Implementations should be idempotent.
+
+        Args:
+            entry: Metadata of the file to index.
+            content: Async byte-stream of the file's content.
+        """
+        ...
+
+    async def deindex(self, path: str) -> None:
+        """Remove a file from the search index.
+
+        Called automatically when a file is deleted or moved.
+
+        Args:
+            path: Backend-relative path of the file to remove from the index.
+        """
+        ...
+
+
+@runtime_checkable
+class ThumbProvider(Protocol):
+    """Protocol for objects that generate thumbnail images.
+
+    A ``ThumbProvider`` accepts a file byte-stream and returns a resized
+    JPEG or PNG thumbnail.  Multiple providers can be registered; the
+    registry selects the first one whose :meth:`can_handle` returns ``True``
+    for a given MIME type.
+    """
+
+    def can_handle(self, mime: str) -> bool:
+        """Return ``True`` if this provider can thumbnail files of *mime*.
+
+        Args:
+            mime: MIME type string, e.g. ``"image/png"`` or
+                ``"application/pdf"``.
+
+        Returns:
+            ``True`` if this provider handles the given MIME type.
+        """
+        ...
+
+    async def generate(
+        self,
+        stream: AsyncIterator[bytes],
+        *,
+        width: int = 256,
+        height: int = 256,
+    ) -> bytes:
+        """Generate a thumbnail from a file byte-stream.
+
+        Args:
+            stream: Async byte-stream of the source file.
+            width: Maximum thumbnail width in pixels.
+            height: Maximum thumbnail height in pixels.
+
+        Returns:
+            Raw bytes of the thumbnail image (JPEG or PNG).
         """
         ...

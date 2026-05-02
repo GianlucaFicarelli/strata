@@ -85,7 +85,7 @@ format: ## Run formatters over the backend
 lint: ## Run ruff linter over the backend
 	cd $(BACKEND) && $(UV) run ruff format --check
 	cd $(BACKEND) && $(UV) run ruff check
-	cd $(BACKEND) && $(UV) run pyright src
+	cd $(BACKEND) && $(UV) run pyright src plugins
 
 typecheck: ## Run pyright type checker over the backend
 	cd $(BACKEND) && $(UV) run pyright .

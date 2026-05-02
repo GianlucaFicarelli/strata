@@ -10,25 +10,25 @@ export async function listBackends() {
   return res.json();
 }
 
-export async function listDir(path = '/', backend = 'local') {
+export async function listDir(path = '/', backend = 'local_storage') {
   const res = await fetch(`${BASE}/list${qs({ path, backend })}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function deleteEntry(path, backend = 'local') {
+export async function deleteEntry(path, backend = 'local_storage') {
   const res = await fetch(`${BASE}/delete${qs({ path, backend })}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function makeDir(path, backend = 'local') {
+export async function makeDir(path, backend = 'local_storage') {
   const res = await fetch(`${BASE}/mkdir${qs({ path, backend })}`, { method: 'POST' });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function moveEntry(src, dst, backend = 'local') {
+export async function moveEntry(src, dst, backend = 'local_storage') {
   const res = await fetch(`${BASE}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -38,11 +38,11 @@ export async function moveEntry(src, dst, backend = 'local') {
   return res.json();
 }
 
-export function downloadUrl(path, backend = 'local') {
+export function downloadUrl(path, backend = 'local_storage') {
   return `${BASE}/download${qs({ path, backend })}`;
 }
 
-export async function uploadFile(path, file, backend = 'local') {
+export async function uploadFile(path, file, backend = 'local_storage') {
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${BASE}/upload${qs({ path, backend })}`, {

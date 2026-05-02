@@ -1,0 +1,31 @@
+[project]
+name = "strata-search-fulltext"
+version = "0.1.0"
+description = "Full-text search plugin for Strata."
+requires-python = ">=3.14"
+dependencies = [
+    "strata>=0.1.0",
+    "fastapi>=0.115",
+    "whoosh>=2.7",
+]
+
+[project.entry-points."strata.plugins"]
+search_fulltext = "strata_search_fulltext:plugin"
+
+[tool.uv.sources]
+strata = { workspace = true }
+
+# [build-system]
+# requires = ["hatchling"]
+# build-backend = "hatchling.build"
+
+# [tool.hatch.build.targets.wheel]
+# packages = ["src/strata_search_fulltext"]
+
+# [tool.ruff]
+# line-length = 100
+# target-version = "py314"
+
+# [tool.pyright]
+# pythonVersion = "3.14"
+# typeCheckingMode = "strict"

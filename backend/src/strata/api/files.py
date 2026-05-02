@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from strata.core.storage import FileEntry, StorageBackend, backend_dep, get
+from strata.dependencies import StorageRegistryDep, storage_backend_dep
+from strata.plugins.protocols import FileEntry, StorageBackend
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -35,19 +36,16 @@ class MoveRequest(BaseModel):
     backend: str = "local"
 
 
-# ── Read operations ───────────────────────────────────────────────────────────
-
-
-@router.get("/list", response_model=list[FileEntry])
+@router.get("/list")
 async def list_dir(
     path: Annotated[str, Query(description="Directory path to list")],
-    storage: Annotated[StorageBackend, Depends(backend_dep)],
+    storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
 ) -> list[FileEntry]:
     """List the contents of a directory on the selected backend.
 
     Args:
         path: Backend-relative directory path.
-        storage: Resolved storage backend (injected by ``backend_dep``).
+        storage: Resolved storage backend.
 
     Returns:
         A list of ``FileEntry`` objects.
@@ -59,7 +57,7 @@ async def list_dir(
 @router.get("/download")
 async def download_file(
     path: Annotated[str, Query(description="File path to download")],
-    storage: Annotated[StorageBackend, Depends(backend_dep)],
+    storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
 ) -> StreamingResponse:
     """Stream a file from the selected backend as an octet-stream.
 
@@ -80,14 +78,11 @@ async def download_file(
     )
 
 
-# ── Write operations ──────────────────────────────────────────────────────────
-
-
 @router.post("/upload")
 async def upload_file(
     path: Annotated[str, Query(description="Directory to upload into")],
     file: Annotated[UploadFile, File()],
-    storage: Annotated[StorageBackend, Depends(backend_dep)],
+    storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
 ) -> dict:
     """Upload a file to the selected backend.
 
@@ -113,7 +108,7 @@ async def upload_file(
 @router.delete("/delete")
 async def delete_path(
     path: Annotated[str, Query(description="Path to delete")],
-    storage: Annotated[StorageBackend, Depends(backend_dep)],
+    storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
 ) -> dict:
     """Delete a file or directory on the selected backend.
 
@@ -132,7 +127,7 @@ async def delete_path(
 @router.post("/mkdir")
 async def make_dir(
     path: Annotated[str, Query(description="Directory path to create")],
-    storage: Annotated[StorageBackend, Depends(backend_dep)],
+    storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
 ) -> dict:
     """Create a directory on the selected backend.
 
@@ -149,7 +144,10 @@ async def make_dir(
 
 
 @router.post("/move")
-async def move_path(req: MoveRequest) -> dict:
+async def move_path(
+    storage_registry: StorageRegistryDep,
+    req: MoveRequest,
+) -> dict:
     """Move or rename a path on the selected backend.
 
     Source and destination must reside on the same backend.
@@ -161,6 +159,6 @@ async def move_path(req: MoveRequest) -> dict:
         A dict with a ``"status": "ok"`` key.
 
     """
-    storage = get(req.backend)
+    storage = storage_registry.get(req.backend)
     await storage.move(req.src, req.dst)
     return {"status": "ok"}
