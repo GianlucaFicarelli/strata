@@ -173,7 +173,7 @@ class SmbStoragePlugin(BackendPlugin):
     id = "smb_storage"
     name = "SMB Storage"
     version = "0.1.0"
-    description = "Exposes a Samba / Windows network share as a Strata storage backend."
+    description = "Exposes a Samba / Windows network share as a storage backend."
 
     def register(self, registry: PluginRegistry) -> None:
         """Register the SMB storage backend.

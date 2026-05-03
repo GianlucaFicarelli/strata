@@ -1,238 +1,264 @@
 # Strata
 
-A plugin-based file browser with swappable storage backends.
+A self-hosted, plugin-based file browser with swappable storage backends.
 
-## Project structure
+## Repository layout
 
 ```
-strata/
-├── Dockerfile                           # Multi-stage: node → uv → runtime
-├── docker-compose.yaml                  # Strata + optional Collabora Online
-├── Makefile                             # Dev, build, lint, and Docker targets
-├── .env.example                         # Copy to .env and customise
-│
+strata/                              ← repo root (WORKDIR in Docker: /strata)
 ├── backend/
-│   ├── pyproject.toml                   # Python project metadata + tool config
-│   ├── uv.lock                          # Pinned dependency versions (commit this)
-│   ├── .venv/                           # Created by `uv sync` (gitignored)
+│   ├── pyproject.toml               ← core package + uv workspace root
+│   ├── uv.lock                      ← committed; used for reproducible installs
+│   ├── plugins/                     ← installable plugin packages (workspace members)
+│   │   ├── local_storage/           ← strata-local-storage
+│   │   ├── s3_storage/              ← strata-s3-storage
+│   │   ├── smb_storage/             ← strata-smb-storage
+│   │   ├── image_preview/           ← strata-image-preview
+│   │   ├── search_fulltext/         ← strata-search-fulltext
+│   │   ├── collabora/               ← strata-collabora
+│   │   └── jwt_auth/                ← strata-jwt-auth
 │   └── src/strata/
-│       ├── config.py                    # Centralised settings via pydantic-settings
-│       ├── main.py                      # FastAPI app entry point
-│       ├── core/
-│       │   ├── files.py                 # Generic file API — thin HTTP layer only
-│       │   └── storage/
-│       │       ├── base.py              # StorageBackend ABC + FileEntry model
-│       │       ├── local.py             # Built-in local filesystem backend
-│       │       └── registry.py         # Backend registry + backend_dep()
-│       ├── plugins/
-│       │   ├── base.py                  # BackendPlugin base class
-│       │   └── loader.py               # Auto-discovery at startup
-│       └── plugins_enabled/            # Active plugins — drop new ones here
-│           ├── image_preview/          # Hybrid: thumbnail endpoint + image previewer
-│           ├── s3_backend/             # Pure storage: S3 via ?backend=s3
-│           └── collabora/             # Hybrid: WOPI host + iframe editor
-│
-└── frontend/
-    ├── package.json
-    ├── vite.config.js                   # Proxies /api → :8000 in dev
-    └── src/
-        ├── App.jsx                      # Shell: layout, routing, plugin loader
-        ├── core-plugins/api.js          # fetch wrappers — all pass ?backend=<id>
-        ├── plugin-api/
-        │   ├── registry.js             # Extension point registry + loadPlugins()
-        │   └── hooks.js                # React hooks: usePreviewer, useFileActions, …
-        └── shell/
-            ├── Sidebar.jsx
-            ├── FileBrowser.jsx         # File list with backend picker (desktop + mobile)
-            └── FilePreview.jsx         # Preview modal (plugin-aware)
+│       ├── config.py                ← Settings (pydantic-settings, STRATA_ prefix)
+│       ├── main.py                  ← FastAPI app, lifespan, /api/backends, /api/plugins
+│       ├── dependencies.py          ← FastAPI Depends helpers (storage, plugin registry)
+│       ├── api/
+│       │   └── files.py             ← Generic file API routes (/api/files/*)
+│       └── plugins/
+│           ├── base.py              ← BackendPlugin base class
+│           ├── protocols.py         ← Capability protocols (6 extension points)
+│           ├── registry.py          ← PluginRegistry + typed sub-registries
+│           └── loader.py            ← PluginLoader: entry-point discovery + lifecycle
+├── frontend/
+│   ├── package.json
+│   ├── vite.config.js               ← Dev proxy /api → :8000
+│   └── src/
+│       ├── App.jsx                  ← Shell: layout + plugin loader
+│       ├── plugin-api/
+│       │   ├── registry.js          ← Extension point registry + loadPlugins()
+│       │   └── hooks.js             ← React hooks: usePreviewer, useFileActions, …
+│       ├── shell/
+│       │   ├── FileBrowser.jsx      ← File list with backend picker
+│       │   ├── FilePreview.jsx      ← Preview modal (plugin-aware)
+│       │   └── Sidebar.jsx
+│       └── core-plugins/api.js      ← fetch wrappers — all pass ?backend=<id>
+├── Dockerfile                       ← Multi-stage: Node → uv → slim runtime
+├── docker-compose.yaml              ← Strata + optional Collabora Online profile
+├── Makefile
+└── .env.example
 ```
 
 ## Quick start
 
-### Prerequisites
+### With Docker (recommended)
 
-- Python 3.14+
-- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- Node.js 22+
-- Docker + Docker Compose (optional, for containerised deployment)
+```bash
+cp .env.example .env          # edit STRATA_LOCAL_ROOT and other settings
+make docker-build
+make docker-up                # Strata at http://localhost:8000
+
+# To include Collabora Online:
+make docker-up-collabora
+```
 
 ### Local development
 
 ```bash
-cp .env.example .env       # customise STRATA_LOCAL_ROOT etc.
-make install               # uv sync + npm install
+make install                  # uv sync --extra all + npm install
+
+# Run both servers in parallel:
+make dev
+
+# Or separately:
+make dev-backend              # FastAPI on :8000 with --reload
+make dev-frontend             # Vite on :5173, proxies /api → :8000
 ```
 
-Then in two terminals:
+Open http://localhost:5173.
+
+## Plugin system
+
+### Discovery
+
+Plugins are separate Python packages installed into the same virtualenv as the core.
+Discovery uses `importlib.metadata` entry points — no folder scanning, no `sys.path` hacks.
+
+Each plugin declares itself in its `pyproject.toml`:
+
+```toml
+[project.entry-points."strata.plugins"]
+local_storage = "strata_local_storage:plugin"
+```
+
+The entry point group name (`strata.plugins`) is configured by `STRATA_ENTRY_POINT_GROUP`.
+
+### Enabling plugins
+
+Set `STRATA_ENABLED_PLUGINS` in `.env` or the environment (comma-separated):
 
 ```bash
-make dev-backend           # FastAPI with --reload on http://localhost:8000
-make dev-frontend          # Vite HMR on http://localhost:5173
+STRATA_ENABLED_PLUGINS=local_storage,image_preview,jwt_auth
 ```
 
-The frontend proxies all `/api/*` requests to the backend automatically.
+The default (in `config.py`) enables `local_storage`, `smb_storage`, and `s3_storage`.
+Only plugins whose entry point name appears in this list are loaded.
 
-### Docker
+### Lifecycle
 
-```bash
-cp .env.example .env
-make docker-build
-make docker-up             # http://localhost:8000
+For each enabled plugin, startup runs in this order:
 
-# With Collabora Online (for .docx/.xlsx editing):
-make docker-up-collabora
-```
+1. `plugin.register(registry)` — synchronous; plugin calls typed `add()` methods on sub-registries.
+2. `await plugin.on_startup()` — async init (connection pools, caches, etc.).
 
-## Architecture
+Shutdown calls `await plugin.on_shutdown()` on every loaded plugin in reverse order.
 
-### Storage backends
+Both `PluginRegistry` and `PluginLoader` are stored in `request.state` and accessed
+via FastAPI `Depends` helpers in `dependencies.py`.
 
-Every `/api/files/*` endpoint accepts a `?backend=<id>` query parameter.
-The request is delegated to the matching `StorageBackend` instance — the
-core API contains no storage logic itself.
+### Extension points
 
-```
-GET /api/files/list?path=/docs&backend=s3
-        │
-        ▼
-   storage registry  →  S3StorageBackend.list("/docs")
-```
-
-The `local` backend is always available. Additional backends are registered
-by plugins at startup and appear automatically in the frontend picker.
-
-### Plugin system
-
-Plugins are Python packages placed in `backend/src/strata/plugins_enabled/`.
-They are discovered automatically at startup — no configuration required.
-
-A plugin may provide any combination of:
-
-| What | How | Example |
+| Sub-registry | Protocol | Purpose |
 |---|---|---|
-| Extra API routes | `get_router() → APIRouter` | Collabora WOPI endpoints |
-| A storage backend | `get_storage_backend() → StorageBackend` | S3, SFTP |
-| A frontend ES module | `get_frontend_assets() → dict` | Image previewer, Collabora iframe |
+| `registry.storage` | `StorageBackend` | Storage system (filesystem, S3, SMB, …) |
+| `registry.routes` | `RouteProvider` | Contribute FastAPI routes |
+| `registry.file_handlers` | `FileHandler` | Frontend viewer/editor for file extensions |
+| `registry.auth` | `AuthProvider` | Authentication (password, OAuth, LDAP, …) |
+| `registry.search` | `SearchProvider` | Full-text or metadata search |
+| `registry.thumbs` | `ThumbProvider` | Thumbnail generation |
 
-### Plugin types
+Protocols are used for **static type-checking only** (pyright). There are no `isinstance`
+chains in the core — the registry's typed `add()` methods are the only dispatch point.
 
-| Type | Example | Backend routes | Frontend module |
-|---|---|:---:|:---:|
-| Pure storage | `s3_backend` | ✗ | ✗ |
-| Pure frontend | themes, keyboard shortcuts | ✗ | ✓ |
-| Hybrid — preview | `image_preview` | ✓ | ✓ |
-| Hybrid — editor | `collabora` | ✓ (WOPI host) | ✓ (iframe) |
+### Bundled plugins
 
-### Frontend extension points
-
-| Registry key | Purpose |
-|---|---|
-| `previewers` | Render file content in the preview modal |
-| `fileActions` | Right-click / toolbar actions on files |
-| `sidebarItems` | Extra entries in the left navigation sidebar |
-| `routes` | Entirely new pages in the frontend app |
+| Package | Entry point | Provides |
+|---|---|---|
+| `strata-local-storage` | `local_storage` | `StorageBackend` — local filesystem |
+| `strata-s3-storage` | `s3_storage` | `StorageBackend` — S3-compatible stores |
+| `strata-smb-storage` | `smb_storage` | `StorageBackend` — SMB/CIFS shares |
+| `strata-image-preview` | `image_preview` | `ThumbProvider` + `FileHandler` for images |
+| `strata-search-fulltext` | `search_fulltext` | `SearchProvider` — full-text indexing |
+| `strata-collabora` | `collabora` | `RouteProvider` (WOPI host) + `FileHandler` (iframe editor) |
+| `strata-jwt-auth` | `jwt_auth` | `AuthProvider` + `RouteProvider` (login/refresh endpoints) |
 
 ## Writing a plugin
 
-### 1. Create a Python package
+### 1. Create a package under `backend/plugins/myplugin/`
 
 ```
-backend/src/strata/plugins_enabled/myplugin/
-├── __init__.py
-└── frontend/
-    └── main.js        # optional — served at /api/plugins/myplugin/assets/main.js
+backend/plugins/myplugin/
+├── pyproject.toml
+└── src/strata_myplugin/
+    └── __init__.py
+```
+
+```toml
+# backend/plugins/myplugin/pyproject.toml
+[project]
+name = "strata-myplugin"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = ["strata>=0.1.0"]
+
+[project.entry-points."strata.plugins"]
+myplugin = "strata_myplugin:plugin"
+
+[tool.uv.sources]
+strata = { workspace = true }
 ```
 
 ```python
-# backend/src/strata/plugins_enabled/myplugin/__init__.py
-from fastapi import APIRouter
+# src/strata_myplugin/__init__.py
 from strata.plugins.base import BackendPlugin
-
-router = APIRouter(prefix="/api/plugins/myplugin")
-
-@router.get("/hello")
-def hello() -> dict:
-    return {"message": "Hello from myplugin!"}
+from strata.plugins.registry import PluginRegistry
 
 class MyPlugin(BackendPlugin):
     id = "myplugin"
     name = "My Plugin"
     version = "0.1.0"
-    description = "Does something useful."
-    handles = [".xyz"]          # file extensions this plugin handles
+    description = "One-line description."
 
-    def get_router(self):
-        return router
+    def register(self, registry: PluginRegistry) -> None:
+        registry.storage.add(MyStorageBackend())    # optional
+        registry.routes.add(MyRouteProvider())      # optional
+        registry.file_handlers.add(MyFileHandler()) # optional
 
-    def get_capabilities(self):
-        return ["preview"]
+    async def on_startup(self) -> None: ...
+    async def on_shutdown(self) -> None: ...
 
 plugin = MyPlugin()
 ```
 
-### 2. Add a frontend module (optional)
+### 2. Run `uv sync`
 
-```js
-// backend/src/strata/plugins_enabled/myplugin/frontend/main.js
-export function register(registry) {
-  registry.previewers.push({
-    id: "myplugin",
-    canHandle: (file) => file.name.endsWith(".xyz"),
-    component: ({ file, backend }) => { /* React component */ },
-  });
-}
+The workspace in `backend/pyproject.toml` picks up all packages under `backend/plugins/*`
+automatically. After creating your package, run:
+
+```bash
+cd backend && uv sync --extra all
 ```
 
-### 3. Restart — the plugin is discovered automatically
+### 3. Enable the plugin
 
-No rebuild of the core application required.
+```bash
+# .env
+STRATA_ENABLED_PLUGINS=local_storage,myplugin
+```
+
+## Storage backend request pattern
+
+All file routes live under `/api/files/*`. The backend is selected per-request via
+`?backend=<id>`.
+
+```
+GET    /api/files/list?backend=local_storage&path=/docs
+GET    /api/files/download?backend=s3_storage&path=/report.pdf
+POST   /api/files/upload?backend=local_storage&path=/uploads
+DELETE /api/files/delete?backend=local_storage&path=/tmp/old.txt
+POST   /api/files/mkdir?backend=local_storage&path=/new-dir
+POST   /api/files/move   body: {"src": "/a", "dst": "/b", "backend": "local_storage"}
+```
+
+`GET /api/backends` returns metadata for all registered backends. The frontend uses this
+to populate the backend picker.
 
 ## Configuration
 
-All settings are read from environment variables. Copy `.env.example` to `.env`:
+All settings are read from environment variables (prefix `STRATA_`) or a `.env` file.
 
 | Variable | Default | Description |
 |---|---|---|
-| `STRATA_LOCAL_ROOT` | `$HOME` | Root directory for the local storage backend |
-| `STRATA_COLLABORA_URL` | `http://collabora:9980` | Base URL of your Collabora Online instance |
-| `STRATA_COLLABORA_SECRET` | *(required in prod)* | Secret for signing WOPI tokens |
-| `STRATA_S3_BUCKET` | — | S3 bucket name (s3_backend plugin) |
-| `AWS_REGION` | `us-east-1` | AWS region |
-| `AWS_ACCESS_KEY_ID` | — | AWS credentials |
-| `AWS_SECRET_ACCESS_KEY` | — | AWS credentials |
-| `STRATA_PORT` | `8000` | Host port for the Strata container |
-| `COLLABORA_PORT` | `9980` | Host port for the Collabora container |
+| `STRATA_ENABLED_PLUGINS` | see `config.py` | Comma-separated plugin entry point names to load |
+| `STRATA_LOCAL_ROOT` | `$HOME` | Root directory for `local_storage` |
+| `STRATA_COLLABORA_URL` | `http://collabora:9980` | Collabora Online base URL |
+| `STRATA_COLLABORA_SECRET` | `change-me` | WOPI shared secret |
+| `STRATA_S3_BUCKET` | `""` | S3 bucket name |
+| `STRATA_AWS_REGION` | `us-east-1` | AWS region |
+| `STRATA_JWT_SECRET` | `change-me-in-production` | JWT signing secret (`jwt_auth` plugin) |
+| `STRATA_JWT_EXPIRE_MINUTES` | `15` | Access token lifetime in minutes (`jwt_auth` plugin) |
+| `STRATA_ENTRY_POINT_GROUP` | `strata.plugins` | Entry point group for plugin discovery |
 
 ## Makefile targets
 
 ```
-make help                 Show all targets with descriptions
-
-make install              Install all dependencies (uv sync + npm install)
-make install-backend      Install Python dependencies only
-make install-frontend     Install Node dependencies only
-
-make compile-deps         Update uv.lock without upgrading versions
-make upgrade-deps         Update uv.lock to latest compatible versions
-make check-deps           Verify uv.lock is consistent with pyproject.toml
-
-make dev                  Run backend and frontend in parallel
-make dev-backend          FastAPI on :8000 with hot-reload
-make dev-frontend         Vite on :5173 with HMR
-
-make build                Build the frontend for production
-make build-frontend       Compile React into frontend/dist/
-
-make docker-build         Build the Docker image
-make docker-up            Start Strata (without Collabora)
-make docker-up-collabora  Start Strata + Collabora Online
-make docker-down          Stop all services
-make docker-logs          Tail all service logs
-
-make format               Auto-format backend code (ruff)
-make lint                 Run ruff + pyright
-make typecheck            Run pyright only
-make test                 Run pytest
-
-make clean                Remove build artefacts and caches
+make help                Show all targets
+make install             uv sync --extra all + npm install
+make install-backend     Python dependencies only
+make install-frontend    Node dependencies only
+make dev                 Run backend and frontend dev servers in parallel
+make dev-backend         FastAPI on :8000 with --reload
+make dev-frontend        Vite on :5173, proxies /api → :8000
+make build               Build the frontend for production
+make compile-deps        Update uv.lock without upgrading versions
+make upgrade-deps        Update uv.lock upgrading all dependencies
+make check-deps          Verify uv.lock is consistent
+make format              Run ruff format + ruff check --fix
+make lint                Run ruff format --check + ruff check + pyright
+make typecheck           Run pyright only
+make test                Run pytest
+make docker-build        Build the Docker image
+make docker-up           Start Strata only
+make docker-up-collabora Start Strata + Collabora Online
+make docker-down         Stop all services
+make docker-logs         Tail logs
+make clean               Remove build artefacts and caches
 ```

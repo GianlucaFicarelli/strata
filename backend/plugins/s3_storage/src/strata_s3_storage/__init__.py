@@ -156,7 +156,7 @@ class S3StoragePlugin(BackendPlugin):
     id = "s3_storage"
     name = "S3 Storage"
     version = "0.1.0"
-    description = "Exposes an Amazon S3 bucket as a Strata storage backend."
+    description = "Exposes an Amazon S3 bucket as a storage backend."
 
     def register(self, registry: PluginRegistry) -> None:
         """Register the S3 storage backend.

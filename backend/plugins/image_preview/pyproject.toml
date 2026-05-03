@@ -14,18 +14,3 @@ image_preview = "strata_image_preview:plugin"
 
 [tool.uv.sources]
 strata = { workspace = true }
-
-# [build-system]
-# requires = ["hatchling"]
-# build-backend = "hatchling.build"
-
-# [tool.hatch.build.targets.wheel]
-# packages = ["src/strata_image_preview"]
-
-# [tool.ruff]
-# line-length = 100
-# target-version = "py314"
-
-# [tool.pyright]
-# pythonVersion = "3.14"
-# typeCheckingMode = "strict"

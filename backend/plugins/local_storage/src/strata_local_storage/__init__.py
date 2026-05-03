@@ -207,7 +207,7 @@ class LocalStoragePlugin(BackendPlugin):
     id = "local_storage"
     name = "Local Storage"
     version = "0.1.0"
-    description = "Exposes the local filesystem as a Strata storage backend."
+    description = "Exposes the local filesystem as a storage backend."
 
     def register(self, registry: PluginRegistry) -> None:
         """Register the local filesystem storage backend.
