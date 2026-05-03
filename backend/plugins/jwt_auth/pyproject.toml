@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "JWT-based password authentication plugin for Strata."
 requires-python = ">=3.14"
 dependencies = [
-    "aiosqlite>=0.20",
     "fastapi>=0.115",
+    "passlib[argon2]>=1.7.4",
     "pydantic>=2.13.3",
     "pydantic-settings>=2.14.0",
     "pyjwt>=2.12.1",

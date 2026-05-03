@@ -19,7 +19,7 @@ Tables
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from strata.db import plugin_base
@@ -56,7 +56,6 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utcnow,
-        server_default=func.now(),
         nullable=False,
     )
 

@@ -1,50 +1,205 @@
+"""JWT and password utilities for the jwt_auth plugin.
+
+Responsibilities
+----------------
+- Sign and decode short-lived **access tokens** (PyJWT / HS256).
+- Issue, hash, and verify long-lived **refresh tokens** (random bytes, SHA-256).
+- Hash and verify **passwords** (Argon2id via passlib).
+- Convert a DB :class:`~strata_jwt_auth.models.User` to a protocol
+  :class:`~strata.plugins.protocols.AuthUser`.
+
+Nothing in this module touches the database directly; all DB work happens in
+:mod:`strata_jwt_auth.router`.
+"""
+
+import hashlib
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
 from fastapi import HTTPException, status
+from passlib.context import CryptContext
 
+from strata.plugins.protocols import AuthUser
 from strata_jwt_auth.config import settings
+from strata_jwt_auth.models import User
+
+# Argon2id is the winner of the Password Hashing Competition and the
+# recommended algorithm for new applications (OWASP 2024).
+_pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 
-def _create_access_token(user_id: str, username: str, is_admin: bool) -> str:
-    """Create a signed JWT access token.
+# ── Password helpers ──────────────────────────────────────────────────────────
+
+
+def hash_password(plain: str) -> str:
+    """Return an Argon2id hash of *plain*.
 
     Args:
-        user_id: Opaque user identifier (database primary key).
-        username: Username or email to embed in the token.
-        is_admin: Whether the user has admin privileges.
+        plain: Plain-text password supplied by the user.
 
     Returns:
-        A signed JWT string.
+        Argon2id hash string suitable for storage in the database.
+    """
+    return _pwd_context.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    """Return ``True`` if *plain* matches the stored *hashed* password.
+
+    Passlib transparently re-hashes with the current parameters if the stored
+    hash was produced with weaker settings (hash upgrading).
+
+    Args:
+        plain: Plain-text password to verify.
+        hashed: Stored Argon2id hash from the database.
+
+    Returns:
+        ``True`` if the password is correct, ``False`` otherwise.
+    """
+    return _pwd_context.verify(plain, hashed)
+
+
+# ── Access token helpers ──────────────────────────────────────────────────────
+
+
+def create_access_token(user: User) -> str:
+    """Return a signed JWT access token for *user*.
+
+    The token embeds ``sub`` (user id), ``username``, ``is_admin``, and
+    ``exp`` (expiry).  No sensitive data is stored in the payload.
+
+    Args:
+        user: The authenticated :class:`~strata_jwt_auth.models.User` row.
+
+    Returns:
+        A compact, URL-safe JWT string.
     """
     expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    payload = {
-        "sub": user_id,
-        "username": username,
-        "is_admin": is_admin,
+    payload: dict[str, Any] = {
+        "sub": user.id,
+        "username": user.username,
+        "is_admin": user.is_admin,
         "exp": expire,
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def _decode_access_token(token: str) -> dict[str, Any]:
+def decode_access_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT access token.
 
     Args:
-        token: Signed JWT string.
+        token: Compact JWT string from the ``Authorization: Bearer`` header.
 
     Returns:
         The decoded payload dict.
 
     Raises:
-        HTTPException: 401 if the token is invalid or expired.
+        HTTPException: 401 if the token is malformed, expired, or has an
+            invalid signature.
     """
     try:
-        return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-    except Exception as exc:
+        return jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+    except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+    except jwt.InvalidTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+
+def auth_user_from_token(token: str) -> AuthUser:
+    """Decode *token* and return the corresponding :class:`~strata.plugins.protocols.AuthUser`.
+
+    Convenience wrapper used by protected route dependencies.
+
+    Args:
+        token: Compact JWT string.
+
+    Returns:
+        An :class:`~strata.plugins.protocols.AuthUser` built from the token payload.
+
+    Raises:
+        HTTPException: 401 on any token error (see :func:`decode_access_token`).
+    """
+    payload = decode_access_token(token)
+    return AuthUser(
+        id=payload["sub"],
+        username=payload["username"],
+        is_admin=payload.get("is_admin", False),
+    )
+
+
+def user_to_auth_user(user: User) -> AuthUser:
+    """Convert a DB :class:`~strata_jwt_auth.models.User` to an :class:`~strata.plugins.protocols.AuthUser`.
+
+    Args:
+        user: ORM user row.
+
+    Returns:
+        Protocol-level :class:`~strata.plugins.protocols.AuthUser`.
+    """  # noqa: E501
+    return AuthUser(id=user.id, username=user.username, is_admin=user.is_admin)
+
+
+# ── Refresh token helpers ─────────────────────────────────────────────────────
+
+
+def generate_refresh_token() -> tuple[str, str]:
+    """Generate a cryptographically random refresh token.
+
+    Returns:
+        A ``(raw_token, token_hash)`` tuple.  Send *raw_token* to the client
+        (e.g. as an ``HttpOnly`` cookie).  Store *token_hash* in the DB.
+        Never store the raw token.
+    """
+    raw = secrets.token_hex(32)
+    token_hash = _hash_refresh_token(raw)
+    return raw, token_hash
+
+
+def _hash_refresh_token(raw: str) -> str:
+    """Return the SHA-256 hex digest of *raw*.
+
+    Args:
+        raw: The plain-text refresh token as returned by :func:`generate_refresh_token`.
+
+    Returns:
+        64-character hex string stored in ``jwt_auth_refresh_tokens.token_hash``.
+    """
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def refresh_token_expiry() -> datetime:
+    """Return the UTC expiry datetime for a newly issued refresh token.
+
+    Returns:
+        ``now + STRATA_JWT_REFRESH_EXPIRE_DAYS`` in UTC.
+    """
+    return datetime.now(UTC) + timedelta(days=settings.JWT_REFRESH_EXPIRE_DAYS)
+
+
+def verify_refresh_token_hash(raw: str, stored_hash: str) -> bool:
+    """Return ``True`` if *raw* hashes to *stored_hash*.
+
+    Uses ``secrets.compare_digest`` to prevent timing attacks.
+
+    Args:
+        raw: Plain-text token received from the client.
+        stored_hash: SHA-256 hex digest from the database.
+
+    Returns:
+        ``True`` if they match.
+    """
+    return secrets.compare_digest(_hash_refresh_token(raw), stored_hash)
