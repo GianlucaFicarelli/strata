@@ -342,13 +342,10 @@ class ThumbRegistry:
 class DbRegistry:
     """Registry of :class:`~strata.plugins.protocols.DbContributor` instances.
 
-    Collected at startup before any migrations run.  The application iterates
-    over all contributors in registration order and calls Alembic for each
-    one that provides a ``migrations_dir``.
-
-    Plugins that only need ``create_all`` (no versioned migrations) set
-    ``migrations_dir = None`` and the application calls
-    ``metadata.create_all(engine)`` for them instead.
+    Contributors are stored and iterated in insertion order, which is the
+    migration execution order.  The core ``strata_users`` contributor is
+    always inserted before plugins register, ensuring that tables referenced
+    by plugin FKs exist before those plugins' migrations run.
     """
 
     def __init__(self) -> None:
@@ -382,12 +379,10 @@ class DbRegistry:
 
 @dataclass
 class PluginRegistry:
-    """Composite registry passed to every plugin's ``register()`` method.
+    """Composite registry holding all extension point sub-registries.
 
-    Each field is a typed sub-registry for one category of extension point.
-    Plugins call the appropriate ``add`` methods to contribute capabilities;
-    the application reads from these registries to wire routes, resolve
-    backends, build the plugin manifest, and dispatch requests.
+    One instance is created at startup and passed to every plugin's
+    :meth:`~strata.plugins.base.BackendPlugin.register` method.
 
     Attributes:
         storage: Registry of storage backends.

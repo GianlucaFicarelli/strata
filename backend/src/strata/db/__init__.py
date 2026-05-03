@@ -29,6 +29,7 @@ Usage in a plugin::
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path as _Path
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -138,3 +139,28 @@ def plugin_base(plugin_name: str) -> type[DeclarativeBase]:
     _Base.__name__ = f"{plugin_name}Base"
     _Base.__qualname__ = f"{plugin_name}Base"
     return _Base
+
+
+class CoreUsersDbContributor:
+    """Registers the core ``strata_users`` table and its Alembic migrations.
+
+    This contributor is always added to :class:`~strata.plugins.registry.DbRegistry`
+    first, before any plugin's ``register()`` is called.  This guarantees
+    that the ``strata_users`` table is created before any plugin migration
+    that declares a FK to it.
+
+    Attributes:
+        metadata: The SQLAlchemy :class:`~sqlalchemy.MetaData` for
+            ``strata_users``.
+        migrations_dir: Absolute path to ``strata/db/migrations/`` inside
+            the installed ``strata`` package.
+    """
+
+    # Import lazily to avoid module-level circular issues during startup.
+    @property
+    def metadata(self):  # type: ignore[override]
+        from strata.db.users import Base  # noqa: PLC0415
+
+        return Base.metadata
+
+    migrations_dir: _Path = _Path(__file__).parent / "migrations"

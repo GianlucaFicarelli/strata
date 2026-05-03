@@ -24,19 +24,16 @@ Extension points
 :class:`ThumbProvider`
     Generates thumbnail images for files on demand.
 :class:`DbContributor`
-    Contributes database tables.
+    Contributes ORM tables and Alembic migrations to the shared database.
 """
 
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
+from fastapi import APIRouter
 from pydantic import BaseModel
-
-if TYPE_CHECKING:
-    from fastapi import APIRouter
-    from sqlalchemy import MetaData
-
+from sqlalchemy import MetaData
 
 # ── Shared data models ────────────────────────────────────────────────────────
 
@@ -65,9 +62,13 @@ class FileEntry(BaseModel):
 class AuthUser(BaseModel):
     """Minimal representation of an authenticated user.
 
+    The ``id`` field is always the corresponding ``strata_users.id`` UUID.
+    This is the stable cross-plugin identity: any plugin that stores
+    per-user data should use this value as its ``user_id`` foreign key.
+
     Attributes:
-        id: Opaque unique identifier for the user.
-        username: Display name or email address.
+        id: Opaque UUID string; corresponds to ``strata_users.id``.
+        username: Display name or login handle.
         is_admin: ``True`` if the user has administrative privileges.
     """
 
@@ -260,9 +261,9 @@ class AuthProvider(Protocol):
             if the credentials were not recognised by this provider.
 
         Raises:
-            HTTPException: 401 if credentials were recognised but invalid
-                (wrong password). Return ``None`` — do not raise — if the
-                provider simply does not handle these credentials.
+            HTTPException: 401 if credentials were recognised but invalid.
+                Return ``None`` — do not raise — if this provider simply
+                does not handle these credentials at all.
         """
         ...
 
@@ -372,21 +373,24 @@ class DbContributor(Protocol):
     """Protocol for plugins that contribute database tables.
 
     A plugin that defines SQLAlchemy ORM models should implement this
-    protocol and register an instance via
-    ``registry.db.add(MyDbContributor())``.
+    protocol and register an instance via ``registry.db.add(...)``.
 
-    The :class:`~strata.plugins.registry.DbRegistry` collects all contributors
-    at startup so the application can:
+    The :class:`~strata.plugins.registry.DbRegistry` collects all
+    contributors at startup and, for each one, runs ``alembic upgrade head``
 
-    - Pass the shared engine to each plugin's Alembic migrations.
-    - Enumerate all plugin ``MetaData`` objects for tooling purposes.
+    Migration ordering
+    ------------------
+    Contributors are migrated in registration order.  The core
+    ``strata_users`` contributor is always registered first (before any
+    plugin's ``register()`` runs), so plugins that declare a FK to
+    ``strata_users.id`` are safe to migrate after it.
 
     Attributes:
-        metadata: The SQLAlchemy :class:`~sqlalchemy.MetaData` instance
-            that owns this plugin's tables.  Typically ``MyPluginBase.metadata``.
-        migrations_dir: Absolute :class:`~pathlib.Path` to the plugin's
-            Alembic ``migrations/`` directory (the directory that contains
-            ``env.py`` and ``versions/``).
+        metadata: The SQLAlchemy :class:`~sqlalchemy.MetaData` for this
+            plugin's tables.  Typically ``MyPluginBase.metadata``.
+        migrations_dir: Absolute :class:`~pathlib.Path` to the Alembic
+            ``migrations/`` directory (contains ``env.py`` and
+            ``versions/``).
     """
 
     metadata: MetaData

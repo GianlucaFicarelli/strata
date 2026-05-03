@@ -105,6 +105,7 @@ def run_migrations_online() -> None:
     injected: AsyncEngine | None = context.config.attributes.get("engine")  # type: ignore[assignment]
 
     if injected is not None:
+
         def _run_sync(conn: Connection) -> None:
             _configure_context(conn)
             context.run_migrations()

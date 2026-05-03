@@ -1,19 +1,21 @@
 """SQLAlchemy ORM models for the JWT auth plugin.
 
-All tables are prefixed with ``jwt_auth_`` to avoid collisions with other
-plugins in the shared Strata database.
-
 Tables
 ------
 ``jwt_auth_users``
-    One row per registered user.  Passwords are stored as Argon2 hashes via
-    passlib.  The ``id`` column is a UUID stored as a string so it is
-    portable across SQLite and PostgreSQL without extra extension setup.
+    Auth-specific extension of the platform identity.  The ``id`` column is
+    both PK and FK to ``strata_users.id`` (one-to-one, CASCADE delete).
+    Deleting the core user row removes the JWT auth row automatically.
 
 ``jwt_auth_refresh_tokens``
-    Server-side store for refresh tokens.  Each row tracks one issued token;
-    rows are deleted on logout or expiry.  Keeping refresh tokens in the DB
-    allows true revocation without waiting for expiry.
+    Server-side refresh token store.  FKs to ``jwt_auth_users.id``.
+
+Why FK to ``strata_users`` and not a standalone PK
+----------------------------------------------------
+Storage plugins (SMB, S3, …) need to store per-user credentials and must
+FK to a user table that does not depend on any specific auth backend.
+``strata_users`` is that stable target.  ``jwt_auth_users`` is a pure
+extension of it — same UUID, extra auth columns.
 """
 
 import uuid
@@ -36,20 +38,28 @@ def _utcnow() -> datetime:
 
 
 class User(Base):
-    """Registered user account.
+    """JWT auth extension of the platform user identity.
+
+    Shares its primary key with ``strata_users`` (one-to-one).  Deleting
+    the ``strata_users`` row cascades here automatically.
 
     Attributes:
-        id: UUID primary key (stored as VARCHAR).
+        id: UUID, PK and FK → ``strata_users.id`` ON DELETE CASCADE.
         username: Unique login name; case-sensitive.
         hashed_password: Argon2id hash of the plain-text password.
-        is_admin: If ``True`` the user has full administrative access.
-        created_at: UTC timestamp of account creation, set by the DB server.
-        refresh_tokens: Back-reference to all active refresh tokens.
+        is_admin: Full administrative access flag.
+        created_at: UTC timestamp of account creation.
+        refresh_tokens: All active refresh tokens for this user.
     """
 
     __tablename__ = "jwt_auth_users"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid, index=True)
+    id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("strata_users.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
     username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(1024), nullable=False)
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
@@ -70,18 +80,12 @@ class User(Base):
 class RefreshToken(Base):
     """Server-side refresh token record.
 
-    Storing refresh tokens in the DB allows immediate revocation (logout,
-    password change) without waiting for the short-lived access token to
-    expire on its own.
-
     Attributes:
         id: UUID primary key.
-        user_id: FK to :class:`User`.
-        token_hash: SHA-256 hex digest of the raw token.  The raw token is
-            sent to the client; only the hash is stored server-side.
-        expires_at: UTC expiry; rows past this timestamp are treated as
-            invalid and can be pruned by a background job.
-        created_at: UTC timestamp of issuance.
+        user_id: FK → ``jwt_auth_users.id`` ON DELETE CASCADE.
+        token_hash: SHA-256 hex digest of the raw opaque token.
+        expires_at: UTC expiry timestamp.
+        created_at: UTC issuance timestamp.
         user: Back-reference to the owning :class:`User`.
     """
 
@@ -89,7 +93,10 @@ class RefreshToken(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("jwt_auth_users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("jwt_auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

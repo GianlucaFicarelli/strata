@@ -29,7 +29,7 @@ from fastapi.staticfiles import StaticFiles
 
 from strata.api.files import router as files_router
 from strata.config import settings
-from strata.db import create_engine, create_session_factory
+from strata.db import CoreUsersDbContributor, create_engine, create_session_factory
 from strata.db.migrations import run_migrations
 from strata.dependencies import StorageRegistryDep
 from strata.plugins.loader import PluginLoader
@@ -44,9 +44,13 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[dict[str, Any]]:
     engine = create_engine(settings.DB_URL, echo=settings.DB_ECHO)
     session_factory = create_session_factory(engine)
 
-    # Plugin discovery & registration
     plugin_registry = PluginRegistry()
     plugin_loader = PluginLoader()
+
+    # Register core DB contributor first (before any plugin)
+    plugin_registry.db.add(CoreUsersDbContributor())
+
+    # Plugin discovery & registration
     await plugin_loader.load_and_register(
         registry=plugin_registry,
         enabled=settings.ENABLED_PLUGINS,

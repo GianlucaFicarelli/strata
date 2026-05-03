@@ -1,41 +1,68 @@
 """SMB/CIFS network share storage backend plugin for Strata.
 
-Registers an :class:`~strata.plugins.protocols.StorageBackend` that mounts
-a Windows or Samba network share via the SMB protocol.
+Contributes:
+
+- :class:`~strata.plugins.protocols.StorageBackend`: accesses a Samba /
+  Windows share via the SMB protocol.
+- :class:`~strata.plugins.protocols.DbContributor`: declares the
+  ``smb_storage_credentials`` table so per-user credentials can be stored.
+  The ``user_id`` FK points at ``strata_users.id`` — no dependency on any
+  specific auth plugin.
 
 Entry point::
 
     [project.entry-points."strata.plugins"]
     smb_storage = "strata_smb_storage:plugin"
 
-Configuration:
-    STRATA_SMB_HOST: Hostname or IP of the SMB server (required).
-    STRATA_SMB_SHARE: Share name, e.g. ``"documents"`` (required).
-    STRATA_SMB_USERNAME: SMB username.
-    STRATA_SMB_PASSWORD: SMB password.
-    STRATA_SMB_DOMAIN: Windows domain (optional, default ``""``).
+Configuration (service-level fallback — used when no per-user credential row
+exists for the requesting user):
 
-To activate, install this package and add ``smb_storage`` to
-``STRATA_ENABLED_PLUGINS``.
-
-Note:
-    Credentials here are shared service-level credentials.  Per-user
-    credential support requires the auth plugin system (Phase 2).
+    STRATA_SMB_HOST      Hostname or IP of the SMB server.
+    STRATA_SMB_SHARE     Share name, e.g. ``"documents"``.
+    STRATA_SMB_USERNAME  SMB username.
+    STRATA_SMB_PASSWORD  SMB password.
+    STRATA_SMB_DOMAIN    Windows domain (default ``""``).
 """
 
 import os
 from collections.abc import AsyncIterator
+from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import FileEntry, StorageBackend
+from strata.plugins.protocols import DbContributor, FileEntry, StorageBackend
 from strata.plugins.registry import PluginRegistry
+from strata_smb_storage.models import Base
+
+# ── DbContributor ─────────────────────────────────────────────────────────────
+
+
+class SmbStorageDbContributor:
+    """Registers ``smb_storage_credentials`` and its Alembic migrations.
+
+    Attributes:
+        metadata: SQLAlchemy :class:`~sqlalchemy.MetaData` for this plugin.
+        migrations_dir: Path to the ``migrations/`` directory inside the
+            installed package, resolved via ``importlib.resources``.
+    """
+
+    metadata = Base.metadata
+    migrations_dir: Path = Path(str(files("strata_smb_storage").joinpath("migrations")))
+
+
+_: DbContributor = SmbStorageDbContributor()  # static type check
+
+
+# ── StorageBackend ────────────────────────────────────────────────────────────
 
 
 class SmbStorageBackend:
     """Storage backend that accesses an SMB/CIFS network share.
 
-    Implements the :class:`~strata.plugins.protocols.StorageBackend` protocol.
+    For now uses service-level credentials from environment variables.
+    Phase 2 will load per-user credentials from ``smb_storage_credentials``
+    via :data:`~strata.dependencies.AsyncSessionDep`.
 
     Attributes:
         id: ``"smb_storage"``
@@ -51,9 +78,6 @@ class SmbStorageBackend:
         self.username: str = os.environ.get("STRATA_SMB_USERNAME", "")
         self.password: str = os.environ.get("STRATA_SMB_PASSWORD", "")
         self.domain: str = os.environ.get("STRATA_SMB_DOMAIN", "")
-        # Production:
-        #   import smbclient
-        #   smbclient.register_session(self.host, username=..., password=..., domain=...)
 
     def _unc(self, path: str) -> str:
         """Build a UNC path for *path* on this share.
@@ -168,12 +192,14 @@ class SmbStoragePlugin(BackendPlugin):
     Capabilities contributed:
 
     - ``registry.storage``: :class:`SmbStorageBackend`
+    - ``registry.db``: :class:`SmbStorageDbContributor` — declares
+      ``smb_storage_credentials`` with ``user_id FK → strata_users.id``.
     """
 
     id = "smb_storage"
     name = "SMB Storage"
     version = "0.1.0"
-    description = "Exposes a Samba / Windows network share as a storage backend."
+    description = "Samba / Windows network share storage with per-user credentials."
 
     def register(self, registry: PluginRegistry) -> None:
         """Register the SMB storage backend.
@@ -181,6 +207,7 @@ class SmbStoragePlugin(BackendPlugin):
         Args:
             registry: The application-wide plugin registry.
         """
+        registry.db.add(SmbStorageDbContributor())
         registry.storage.add(SmbStorageBackend())
 
 

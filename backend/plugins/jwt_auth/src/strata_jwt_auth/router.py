@@ -28,6 +28,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from strata.db.users import StrataUser
 from strata.dependencies import AsyncSessionDep
 from strata.plugins.protocols import AuthUser
 from strata_jwt_auth.config import settings
@@ -116,12 +117,18 @@ async def register(req: RegisterRequest, session: AsyncSessionDep) -> UserRespon
             detail=f"Username {req.username!r} is already taken.",
         )
 
+    # Create the platform identity row first; jwt_auth_users.id FKs to it.
+    core_user = StrataUser()
+    session.add(core_user)
+    await session.flush()  # populate core_user.id
+
     user = User(
+        id=core_user.id,  # share the same UUID
         username=req.username,
         hashed_password=hash_password(req.password),
     )
     session.add(user)
-    await session.flush()  # populate user.id before returning
+    await session.flush()
     return UserResponse(id=user.id, username=user.username, is_admin=user.is_admin)
 
 
