@@ -23,15 +23,19 @@ Extension points
     Provides full-text or metadata search over a storage backend.
 :class:`ThumbProvider`
     Generates thumbnail images for files on demand.
+:class:`DbContributor`
+    Contributes database tables.
 """
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
+    from sqlalchemy import MetaData
 
 
 # ── Shared data models ────────────────────────────────────────────────────────
@@ -361,3 +365,29 @@ class ThumbProvider(Protocol):
             Raw bytes of the thumbnail image (JPEG or PNG).
         """
         ...
+
+
+@runtime_checkable
+class DbContributor(Protocol):
+    """Protocol for plugins that contribute database tables.
+
+    A plugin that defines SQLAlchemy ORM models should implement this
+    protocol and register an instance via
+    ``registry.db.add(MyDbContributor())``.
+
+    The :class:`~strata.plugins.registry.DbRegistry` collects all contributors
+    at startup so the application can:
+
+    - Pass the shared engine to each plugin's Alembic migrations.
+    - Enumerate all plugin ``MetaData`` objects for tooling purposes.
+
+    Attributes:
+        metadata: The SQLAlchemy :class:`~sqlalchemy.MetaData` instance
+            that owns this plugin's tables.  Typically ``MyPluginBase.metadata``.
+        migrations_dir: Absolute :class:`~pathlib.Path` to the plugin's
+            Alembic ``migrations/`` directory (the directory that contains
+            ``env.py`` and ``versions/``).
+    """
+
+    metadata: MetaData
+    migrations_dir: Path

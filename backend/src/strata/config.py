@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     COLLABORA_SECRET: str = "change-me"
     S3_BUCKET: str = ""
     AWS_REGION: str = "us-east-1"
-    # Entry point group name all Strata plugins must register under
+
+    DB_URL: str = f"sqlite+aiosqlite:///{Path('~').expanduser()}/.strata/strata.db"
+    DB_ECHO: bool = False
+
     ENTRY_POINT_GROUP: str = "strata.plugins"
     ENABLED_PLUGINS: list[str] = [
         "local_storage",

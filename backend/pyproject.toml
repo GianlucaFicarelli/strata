@@ -4,23 +4,27 @@ version = "0.1.0"
 description = "A plugin-based file browser with swappable storage backends."
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
-    "python-multipart>=0.0.9",
-    "aiofiles>=24.1",
-    "pydantic>=2.0",
-    "pydantic-settings>=2.0",
+    "aiofiles>=25.1",
+    "aiosqlite>=0.22.1",
+    "alembic>=1.18.4",
+    "anyio>=4.13.0",
+    "fastapi>=0.136",
+    "pydantic-settings>=2.14",
+    "pydantic>=2.13",
+    "python-multipart>=0.0.27",
+    "sqlalchemy[asyncio]>=2.0",
+    "uvicorn[standard]>=0.46",
 ]
 
 [project.optional-dependencies]
 all = [
-    "strata-image-preview",
-    "strata-local-storage",
-    "strata-smb-storage",
-    "strata-s3-storage",
     "strata-collabora",
+    "strata-image-preview",
     "strata-jwt-auth",
+    "strata-local-storage",
+    "strata-s3-storage",
     "strata-search-fulltext",
+    "strata-smb-storage",
 ]
 
 [build-system]

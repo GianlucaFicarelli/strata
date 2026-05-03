@@ -24,6 +24,7 @@ from fastapi import HTTPException
 from strata.plugins.protocols import (
     AuthProvider,
     AuthUser,
+    DbContributor,
     FileHandler,
     RouteProvider,
     SearchProvider,
@@ -338,6 +339,44 @@ class ThumbRegistry:
         return await provider.generate(stream, width=width, height=height)
 
 
+class DbRegistry:
+    """Registry of :class:`~strata.plugins.protocols.DbContributor` instances.
+
+    Collected at startup before any migrations run.  The application iterates
+    over all contributors in registration order and calls Alembic for each
+    one that provides a ``migrations_dir``.
+
+    Plugins that only need ``create_all`` (no versioned migrations) set
+    ``migrations_dir = None`` and the application calls
+    ``metadata.create_all(engine)`` for them instead.
+    """
+
+    def __init__(self) -> None:
+        self._contributors: list[DbContributor] = []
+
+    def add(self, contributor: DbContributor) -> None:
+        """Register a DB contributor.
+
+        Args:
+            contributor: An object implementing
+                :class:`~strata.plugins.protocols.DbContributor`.
+        """
+        self._contributors.append(contributor)
+        L.info(
+            "Registered DB contributor %r (%d tables)",
+            type(contributor).__name__,
+            len(contributor.metadata.tables),
+        )
+
+    def all(self) -> list[DbContributor]:
+        """Return every registered contributor in registration order.
+
+        Returns:
+            A list of :class:`~strata.plugins.protocols.DbContributor` instances.
+        """
+        return list(self._contributors)
+
+
 # ── Composite registry ────────────────────────────────────────────────────────
 
 
@@ -357,6 +396,7 @@ class PluginRegistry:
         auth: Registry of authentication providers.
         search: Registry of search providers.
         thumbs: Registry of thumbnail generators.
+        db: Registry of database contributors (ORM metadata + migrations).
     """
 
     storage: StorageRegistry = field(default_factory=StorageRegistry)
@@ -365,3 +405,4 @@ class PluginRegistry:
     auth: AuthRegistry = field(default_factory=AuthRegistry)
     search: SearchRegistry = field(default_factory=SearchRegistry)
     thumbs: ThumbRegistry = field(default_factory=ThumbRegistry)
+    db: DbRegistry = field(default_factory=DbRegistry)
