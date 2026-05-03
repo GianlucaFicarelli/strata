@@ -1,18 +1,38 @@
 """Alembic migration environment for strata-jwt-auth.
 
-This ``env.py`` is called by Alembic (via :func:`strata.db.migrations.run_migrations`)
-with the application engine injected into ``context.config.attributes["engine"]``.
-It configures Alembic to use the async engine synchronously (via ``run_sync``)
-and targets only this plugin's metadata so that ``autogenerate`` never touches
-tables owned by other plugins.
+Key design points
+-----------------
 
-Running autogenerate from the CLI (for development)::
+**Per-plugin version table** (``version_table="alembic_version_jwt_auth"``)
+    Alembic's default version table is ``alembic_version``.  When multiple
+    plugins share the same database and each runs its own Alembic environment,
+    they would all read/write that one table.  The second plugin to run would
+    find an unrecognised revision ID from the first plugin and raise::
 
-    cd backend
-    # Set the URL so Alembic can connect without the injected engine:
-    STRATA_DB_URL="sqlite+aiosqlite:///~/.strata/strata.db" \\
-    alembic --config plugins/jwt_auth/src/strata_jwt_auth/migrations/alembic.ini \\
-        revision --autogenerate -m "describe your change"
+        alembic.util.exc.CommandError: Can't locate revision identified by '0001'
+
+    Giving each plugin its own ``version_table`` name completely isolates
+    their revision histories.  The table is cheap (one row) and the name
+    is stable, so there is no downside.
+
+**Branch label** (``branch_labels=("jwt_auth",)`` in the initial revision)
+    Alembic supports multiple independent revision *branches* within a single
+    ``alembic_version`` table.  We don't use that here because we have
+    separate version tables, but the label is kept for clarity when reading
+    revision history and for potential future tooling.
+
+**``include_object`` filter**
+    Restricts ``alembic revision --autogenerate`` to only compare tables
+    registered in *this* plugin's ``Base.metadata``.  Without this, any
+    table created by another plugin (or the test suite) would appear as
+    "extra" and get a spurious ``drop_table`` in the generated migration.
+
+**Injected vs CLI engine**
+    When called programmatically via :func:`strata.db.migrations.run_migrations`,
+    the live ``AsyncEngine`` is injected via ``context.config.attributes["engine"]``.
+    When run from the CLI (``alembic upgrade head``), that key is absent and
+    we fall back to building a sync engine from ``sqlalchemy.url`` in
+    ``alembic.ini``.
 """
 
 import asyncio
@@ -23,7 +43,8 @@ from sqlalchemy import Connection, engine_from_config, pool
 from sqlalchemy.ext.asyncio import AsyncEngine
 from strata_jwt_auth.models import Base
 
-# Alembic Config object giving access to alembic.ini values.
+from strata.db.migrations import version_table_name
+
 config = context.config
 
 if config.config_file_name is not None:
@@ -31,66 +52,78 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Each plugin must use a unique version table so that multiple plugins sharing
+# the same database do not overwrite each other's revision pointers.
+# Convention: "alembic_version_<plugin_id>".
+VERSION_TABLE = version_table_name("jwt_auth")
+
+
+def _configure_context(connection: Connection) -> None:
+    """Apply shared context.configure() options for both online/offline modes."""
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table=VERSION_TABLE,
+        # Restrict autogenerate to this plugin's tables only.
+        # Without this, tables from other plugins or the app appear as
+        # "unmapped" and generate spurious drop_table statements.
+        include_object=lambda obj, name, type_, reflected, compare_to: (
+            name in target_metadata.tables if type_ == "table" else True
+        ),
+        # Render AS TIMEZONE-aware columns correctly on PostgreSQL.
+        render_as_batch=True,  # required for SQLite ALTER TABLE support
+    )
+
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode (URL only, no live connection).
-
-    Used when running ``alembic revision --autogenerate`` from the CLI
-    without an injected engine.
-    """
+    """Run migrations against a URL without a live connection (CLI use)."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        version_table=VERSION_TABLE,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        # Restrict autogenerate to this plugin's tables.
-        include_schemas=False,
-    )
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-def _do_run_sync(conn: Connection) -> None:
-    context.configure(
-        connection=conn,
-        target_metadata=target_metadata,
-        # Restrict autogenerate to tables in this plugin's metadata only.
         include_object=lambda obj, name, type_, reflected, compare_to: (
             name in target_metadata.tables if type_ == "table" else True
         ),
+        render_as_batch=True,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode using the injected async engine.
+    """Run migrations with a live connection.
 
-    The engine is passed in via ``context.config.attributes["engine"]`` by
-    :func:`strata.db.migrations.run_migrations`.  If it is not present (e.g.
-    when running from the CLI), fall back to creating a sync engine from the
-    configured URL.
+    Prefers the ``AsyncEngine`` injected via
+    ``context.config.attributes["engine"]`` (set by
+    :func:`strata.db.migrations.run_migrations`).  Falls back to a sync
+    engine built from the ``sqlalchemy.url`` in ``alembic.ini`` when run
+    directly from the CLI.
     """
     injected: AsyncEngine | None = context.config.attributes.get("engine")  # type: ignore[assignment]
 
     if injected is not None:
-        # Called programmatically from strata.db.migrations.run_migrations.
+        def _run_sync(conn: Connection) -> None:
+            _configure_context(conn)
+            context.run_migrations()
 
-        async def _run() -> None:
+        async def _run_async() -> None:
             async with injected.connect() as async_conn:
-                await async_conn.run_sync(_do_run_sync)
+                await async_conn.run_sync(_run_sync)
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        asyncio.get_event_loop().run_until_complete(_run_async())
     else:
-        # Called directly via the Alembic CLI.
+        # CLI fallback: build a synchronous engine from alembic.ini.
         connectable = engine_from_config(
             config.get_section(config.config_ini_section, {}),
             prefix="sqlalchemy.",
             poolclass=pool.NullPool,
         )
         with connectable.connect() as connection:
-            _do_run_sync(connection)
+            _configure_context(connection)
+            context.run_migrations()
 
 
 if context.is_offline_mode():

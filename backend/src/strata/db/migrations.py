@@ -76,3 +76,34 @@ async def run_migrations(engine: AsyncEngine, migrations_dir: Path) -> None:
     # the actual DB work happens via run_sync inside env.py.
     await to_thread.run_sync(lambda: command.upgrade(alembic_cfg, "head"))
     L.info("Migrations complete for %s", migrations_dir.parent.name)
+
+
+def version_table_name(plugin_id: str) -> str:
+    """Return the Alembic version table name for *plugin_id*.
+
+    Each plugin that uses Alembic **must** pass this name as ``version_table``
+    in every ``context.configure()`` call inside its ``env.py``.
+
+    Convention: ``"alembic_version_<plugin_id>"``
+
+    Args:
+        plugin_id: The plugin's ``BackendPlugin.id``, e.g. ``"jwt_auth"``.
+
+    Returns:
+        Table name string, e.g. ``"alembic_version_jwt_auth"``.
+
+    Example (in a plugin's ``migrations/env.py``)::
+
+        from strata.db.migrations import version_table_name
+        VERSION_TABLE = version_table_name("jwt_auth")
+
+        def _configure_context(connection):
+            context.configure(
+                connection=connection,
+                target_metadata=Base.metadata,
+                version_table=VERSION_TABLE,
+                render_as_batch=True,   # required for SQLite ALTER TABLE
+                include_object=...,
+            )
+    """
+    return f"alembic_version_{plugin_id}"
