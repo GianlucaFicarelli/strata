@@ -28,7 +28,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from strata.db.users import StrataUser
+from strata.db.models import StrataUser
 from strata.dependencies import AsyncSessionDep
 from strata.plugins.protocols import AuthUser
 from strata_jwt_auth.config import settings

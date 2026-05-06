@@ -8,7 +8,7 @@ from sqlalchemy import Connection, engine_from_config, pool
 from sqlalchemy.ext.asyncio import AsyncEngine
 from strata_smb_storage.models import Base
 
-from strata.db.migrations import version_table_name
+from strata.db.utils import version_table_name
 
 config = context.config
 

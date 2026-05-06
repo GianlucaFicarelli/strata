@@ -26,21 +26,13 @@ runs the ``strata_core`` migration before any plugin migration, guaranteeing
 that ``strata_users`` exists when plugins that FK to it are migrated.
 """
 
-import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from strata.db import plugin_base
-
-# The core Base is produced via plugin_base() like any other contributor so
-# that its MetaData object is self-contained and registerable independently.
-Base = plugin_base("strata_core")
-
-
-def _uuid() -> str:
-    return str(uuid.uuid4())
+from strata.db.base import Base
+from strata.utils import create_uuid
 
 
 class StrataUser(Base):
@@ -57,7 +49,7 @@ class StrataUser(Base):
 
     __tablename__ = "strata_users"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid, index=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -71,6 +71,16 @@ pythonVersion = "3.14"
 typeCheckingMode = "strict"
 venvPath = "."
 venv = ".venv"
+extraPaths = [
+    "src/",
+    "plugins/collabora/src/",
+    "plugins/image_preview/src/",
+    "plugins/jwt_auth/src/",
+    "plugins/local_storage/src/",
+    "plugins/s3_storage/src/",
+    "plugins/search_fulltext/src/",
+    "plugins/smb_storage/src/",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -29,8 +29,9 @@ from fastapi.staticfiles import StaticFiles
 
 from strata.api.files import router as files_router
 from strata.config import settings
-from strata.db import CoreUsersDbContributor, create_engine, create_session_factory
-from strata.db.migrations import run_migrations
+from strata.db.plugin import CoreUsersDbContributor
+from strata.db.session import create_engine, create_session_factory
+from strata.db.utils import run_migrations
 from strata.dependencies import StorageRegistryDep
 from strata.plugins.loader import PluginLoader
 from strata.plugins.registry import PluginRegistry

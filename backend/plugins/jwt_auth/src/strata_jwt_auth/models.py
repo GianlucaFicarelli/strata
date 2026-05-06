@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from strata.db import plugin_base
+from strata.db.base import plugin_base
 
 Base = plugin_base("strata_jwt_auth")
 

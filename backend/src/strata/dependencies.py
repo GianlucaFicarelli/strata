@@ -10,7 +10,7 @@ from typing import Annotated
 from fastapi import Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from strata.db import session_scope
+from strata.db.session import session_scope
 from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import FileHandlerRegistry, PluginRegistry, StorageRegistry
 

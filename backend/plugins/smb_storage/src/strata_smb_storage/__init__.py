@@ -30,8 +30,10 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import MetaData
+
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import DbContributor, FileEntry, StorageBackend
+from strata.plugins.protocols import FileEntry
 from strata.plugins.registry import PluginRegistry
 from strata_smb_storage.models import Base
 
@@ -47,11 +49,8 @@ class SmbStorageDbContributor:
             installed package, resolved via ``importlib.resources``.
     """
 
-    metadata = Base.metadata
+    metadata: MetaData = Base.metadata
     migrations_dir: Path = Path(str(files("strata_smb_storage").joinpath("migrations")))
-
-
-_: DbContributor = SmbStorageDbContributor()  # static type check
 
 
 # ── StorageBackend ────────────────────────────────────────────────────────────
@@ -181,9 +180,6 @@ class SmbStorageBackend:
             "host": self.host,
             "share": self.share,
         }
-
-
-_: StorageBackend = SmbStorageBackend()  # type: ignore[assignment]
 
 
 class SmbStoragePlugin(BackendPlugin):
