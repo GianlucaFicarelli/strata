@@ -10,8 +10,7 @@ Database lifecycle
 2. Plugin registration runs — each DB-aware plugin calls
    ``registry.db.add(MyDbContributor())`` to declare its tables.
 3. Migrations run for every registered :class:`~strata.plugins.protocols.DbContributor`
-   that provides a ``migrations_dir``.  Contributors without one get
-   ``metadata.create_all()`` instead (useful during development).
+   that provides a ``migrations_dir``.
 4. The engine and session factory are stored in ``request.state`` so that
    the :data:`~strata.dependencies.AsyncSessionDep` ``Depends`` can yield
    a session to any route, including those added by plugins.
@@ -64,6 +63,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[dict[str, Any]]:
     # Run DB migrations for every registered contributor
     for contributor in plugin_registry.db.all():
         try:
+            L.warning("Running migration for contributor %r", type(contributor).__name__)
             await run_migrations(engine, contributor.migrations_dir)
         except Exception:
             L.exception(

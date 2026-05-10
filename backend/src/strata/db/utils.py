@@ -18,34 +18,108 @@ Design constraints
 Typical ``env.py`` for a plugin::
 
     # strata_myplugin/migrations/env.py
-    from alembic import context
-    from strata_myplugin.models import Base
+    from strata_jwt_auth.models import Base
 
-    def run_migrations_online() -> None:
-        connectable = context.config.attributes["engine"]
+    from strata.db.utils import MigrationEnv, version_table_name
 
-        async def do_run(conn):
-            context.configure(connection=conn, target_metadata=Base.metadata)
-            with context.begin_transaction():
-                context.run_migrations()
-
-        import asyncio
-        asyncio.get_event_loop().run_until_complete(
-            connectable.run_sync(do_run)  # run_sync gives a sync conn
-        )
-
-    run_migrations_online()
+    env = MigrationEnv(
+        target_metadata=Base.metadata,
+        version_table=version_table_name("jwt_auth"),
+    )
+    env.run()
 """
 
+import asyncio
 import logging
 from pathlib import Path
 
-from alembic import command
+from alembic import command, context
 from alembic.config import Config
-from anyio import to_thread
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy import MetaData, pool
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import AsyncEngine, async_engine_from_config
 
 L = logging.getLogger(__name__)
+
+
+class MigrationEnv:
+    def __init__(
+        self,
+        *,
+        target_metadata: MetaData,
+        version_table: str,
+    ) -> None:
+        self.config: Config = context.config
+        self.target_metadata = target_metadata
+        self.version_table = version_table
+
+    def _configure(self, **kwargs) -> None:
+        context.configure(
+            target_metadata=self.target_metadata,
+            version_table=self.version_table,
+            # required for SQLite ALTER TABLE support
+            render_as_batch=True,
+            # Restrict autogenerate to this plugin's tables only.
+            # Without this, tables from other plugins or the app appear as
+            # "unmapped" and generate spurious drop_table statements.
+            include_object=lambda obj, name, type_, reflected, compare_to: (
+                name in self.target_metadata.tables if type_ == "table" else True
+            ),
+            **kwargs,
+        )
+
+    def run_migrations_offline(self) -> None:
+        """Run migrations in 'offline' mode.
+
+        This configures the context with just a URL
+        and not an Engine, though an Engine is acceptable
+        here as well.  By skipping the Engine creation
+        we don't even need a DBAPI to be available.
+
+        Calls to context.execute() here emit the given string to the
+        script output.
+
+        """
+        url = self.config.get_main_option("sqlalchemy.url")
+        self._configure(
+            url=url,
+            literal_binds=True,
+            dialect_opts={"paramstyle": "named"},
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+
+    def do_run_migrations(self, connection: Connection) -> None:
+        self._configure(connection=connection)
+        with context.begin_transaction():
+            context.run_migrations()
+
+    async def run_async_migrations(self) -> None:
+        injected: AsyncEngine | None = self.config.attributes.get("engine")
+
+        if injected:
+            connectable = injected
+            async with connectable.connect() as connection:
+                await connection.run_sync(self.do_run_migrations)
+        else:
+            connectable = async_engine_from_config(
+                self.config.get_section(self.config.config_ini_section, {}),
+                prefix="sqlalchemy.",
+                poolclass=pool.NullPool,
+            )
+            async with connectable.connect() as connection:
+                await connection.run_sync(self.do_run_migrations)
+            await connectable.dispose()
+
+    def run_migrations_online(self) -> None:
+        """Run migrations in 'online' mode."""
+        asyncio.run(self.run_async_migrations())
+
+    def run(self) -> None:
+        if context.is_offline_mode():
+            self.run_migrations_offline()
+        else:
+            self.run_migrations_online()
 
 
 async def run_migrations(engine: AsyncEngine, migrations_dir: Path) -> None:
@@ -71,10 +145,7 @@ async def run_migrations(engine: AsyncEngine, migrations_dir: Path) -> None:
     alembic_cfg.attributes["engine"] = engine
 
     L.info("Running Alembic migrations from %s", migrations_dir)
-
-    # Alembic's command API is synchronous; it runs fine in a thread because
-    # the actual DB work happens via run_sync inside env.py.
-    await to_thread.run_sync(lambda: command.upgrade(alembic_cfg, "head"))
+    await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
     L.info("Migrations complete for %s", migrations_dir.parent.name)
 
 
@@ -91,19 +162,5 @@ def version_table_name(plugin_id: str) -> str:
 
     Returns:
         Table name string, e.g. ``"alembic_version_jwt_auth"``.
-
-    Example (in a plugin's ``migrations/env.py``)::
-
-        from strata.db.migrations import version_table_name
-        VERSION_TABLE = version_table_name("jwt_auth")
-
-        def _configure_context(connection):
-            context.configure(
-                connection=connection,
-                target_metadata=Base.metadata,
-                version_table=VERSION_TABLE,
-                render_as_batch=True,   # required for SQLite ALTER TABLE
-                include_object=...,
-            )
     """
     return f"alembic_version_{plugin_id}"

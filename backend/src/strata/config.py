@@ -27,7 +27,7 @@ class Settings(BaseSettings):
         "s3_storage",
         "image_preview",
         # "collabora",
-        # "jwt_auth",
+        "jwt_auth",
         # "search_fulltext",
     ]
 
