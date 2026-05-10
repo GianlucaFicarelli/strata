@@ -28,11 +28,11 @@ that ``core_users`` exists when plugins that FK to it are migrated.
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from strata.db.base import Base
-from strata.utils import create_uuid
+from strata.utils import create_uuid, utcnow
 
 
 class StrataUser(Base):
@@ -50,11 +50,7 @@ class StrataUser(Base):
     __tablename__ = "core_users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid, index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     def __repr__(self) -> str:
         return f"<StrataUser id={self.id!r} created={self.created_at}>"

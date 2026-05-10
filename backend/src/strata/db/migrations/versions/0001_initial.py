@@ -24,7 +24,6 @@ def upgrade() -> None:
             "created_at",
             sa.DateTime(timezone=True),
             nullable=False,
-            server_default=sa.func.now(),
         ),
     )
     op.create_index("ix_core_users_id", "core_users", ["id"])

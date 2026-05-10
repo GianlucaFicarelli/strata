@@ -32,7 +32,6 @@ def upgrade() -> None:
             "created_at",
             sa.DateTime(timezone=True),
             nullable=False,
-            server_default=sa.func.now(),
         ),
     )
     op.create_index("ix_jwt_auth_users_id", "jwt_auth_users", ["id"])
@@ -49,7 +48,11 @@ def upgrade() -> None:
         ),
         sa.Column("token_hash", sa.String(64), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+        ),
     )
     op.create_index(
         "ix_jwt_auth_refresh_tokens_user_id",

@@ -19,11 +19,11 @@ output (AES-GCM ciphertext + nonce + tag).
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, func
+from sqlalchemy import ForeignKey, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from strata.db.base import Base
-from strata.utils import create_uuid
+from strata.utils import create_uuid, utcnow
 
 
 class SmbCredential(Base):
@@ -62,17 +62,8 @@ class SmbCredential(Base):
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     smb_username: Mapped[str] = mapped_column(String(255), nullable=False)
     encrypted_password: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        server_onupdate=func.now(),
-        nullable=False,
-    )
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     def __repr__(self) -> str:
         return (

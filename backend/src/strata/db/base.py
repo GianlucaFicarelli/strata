@@ -1,15 +1,17 @@
 from datetime import datetime
 from typing import ClassVar
 
-from sqlalchemy import DateTime, MetaData
+from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
+
+from strata.db.types import TZDateTime
 
 
 class Base(DeclarativeBase):
     """Common declarative base."""
 
     type_annotation_map: ClassVar[dict] = {
-        datetime: DateTime(timezone=True),
+        datetime: TZDateTime,
     }
     metadata = MetaData(
         naming_convention={

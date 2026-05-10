@@ -20,7 +20,7 @@ extension of it — same UUID, extra auth columns.
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from strata.db.base import Base
@@ -53,11 +53,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(1024), nullable=False)
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(
         back_populates="user", cascade="all, delete-orphan", lazy="selectin"
@@ -89,12 +85,8 @@ class RefreshToken(Base):
         index=True,
     )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
+    expires_at: Mapped[datetime]
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     user: Mapped[User] = relationship(back_populates="refresh_tokens")
 

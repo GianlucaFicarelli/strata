@@ -132,7 +132,7 @@ async def register(req: RegisterRequest, session: AsyncSessionDep) -> UserRespon
     return UserResponse(id=user.id, username=user.username, is_admin=user.is_admin)
 
 
-@plugin_router.post("/login", response_model=LoginResponse)
+@plugin_router.post("/login")
 async def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: AsyncSessionDep,
@@ -184,7 +184,7 @@ async def login(
     )
 
 
-@plugin_router.post("/refresh", response_model=LoginResponse)
+@plugin_router.post("/refresh")
 async def refresh(req: RefreshRequest, session: AsyncSessionDep) -> LoginResponse:
     """Exchange a valid refresh token for a new access token.
 
@@ -265,7 +265,7 @@ async def logout(req: RefreshRequest, session: AsyncSessionDep) -> None:
             break
 
 
-@plugin_router.get("/me", response_model=UserResponse)
+@plugin_router.get("/me")
 async def me(current_user: CurrentUserDep) -> UserResponse:
     """Return the authenticated user's public profile.
 
