@@ -35,7 +35,7 @@ from strata.db.base import Base
 from strata.utils import create_uuid, utcnow
 
 
-class StrataUser(Base):
+class CoreUser(Base):
     """Platform-level user identity record.
 
     This row is the FK target for every plugin that stores per-user data.
@@ -53,4 +53,4 @@ class StrataUser(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     def __repr__(self) -> str:
-        return f"<StrataUser id={self.id!r} created={self.created_at}>"
+        return f"<CoreUser id={self.id!r} created={self.created_at}>"

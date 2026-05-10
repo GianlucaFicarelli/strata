@@ -165,11 +165,11 @@ def generate_refresh_token() -> tuple[str, str]:
         Never store the raw token.
     """
     raw = secrets.token_hex(32)
-    token_hash = _hash_refresh_token(raw)
+    token_hash = hash_refresh_token(raw)
     return raw, token_hash
 
 
-def _hash_refresh_token(raw: str) -> str:
+def hash_refresh_token(raw: str) -> str:
     """Return the SHA-256 hex digest of *raw*.
 
     Args:
@@ -188,18 +188,3 @@ def refresh_token_expiry() -> datetime:
         ``now + STRATA_JWT_REFRESH_EXPIRE_DAYS`` in UTC.
     """
     return datetime.now(UTC) + timedelta(days=settings.JWT_REFRESH_EXPIRE_DAYS)
-
-
-def verify_refresh_token_hash(raw: str, stored_hash: str) -> bool:
-    """Return ``True`` if *raw* hashes to *stored_hash*.
-
-    Uses ``secrets.compare_digest`` to prevent timing attacks.
-
-    Args:
-        raw: Plain-text token received from the client.
-        stored_hash: SHA-256 hex digest from the database.
-
-    Returns:
-        ``True`` if they match.
-    """
-    return secrets.compare_digest(_hash_refresh_token(raw), stored_hash)

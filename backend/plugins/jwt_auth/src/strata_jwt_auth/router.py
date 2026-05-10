@@ -25,10 +25,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from strata.db.models import StrataUser
+from strata.db.models import CoreUser
 from strata.dependencies import AsyncSessionDep
 from strata.plugins.protocols import AuthUser
 from strata_jwt_auth.config import settings
@@ -44,9 +44,9 @@ from strata_jwt_auth.utils import (
     create_access_token,
     generate_refresh_token,
     hash_password,
+    hash_refresh_token,
     refresh_token_expiry,
     verify_password,
-    verify_refresh_token_hash,
 )
 
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/plugins/jwt_auth/login")
@@ -118,7 +118,7 @@ async def register(req: RegisterRequest, session: AsyncSessionDep) -> UserRespon
         )
 
     # Create the platform identity row first; jwt_auth_users.id FKs to it.
-    core_user = StrataUser()
+    core_user = CoreUser()
     session.add(core_user)
     await session.flush()  # populate core_user.id
 
@@ -207,15 +207,15 @@ async def refresh(req: RefreshRequest, session: AsyncSessionDep) -> LoginRespons
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # Load all refresh tokens for this hash (should be 0 or 1).
-    result = await session.execute(select(RefreshToken))
-    all_tokens: list[RefreshToken] = list(result.scalars().all())
+    hashed = hash_refresh_token(req.refresh_token)
 
-    matched: RefreshToken | None = None
-    for rt in all_tokens:
-        if verify_refresh_token_hash(req.refresh_token, rt.token_hash):
-            matched = rt
-            break
+    result = await session.execute(
+        select(RefreshToken).where(
+            RefreshToken.token_hash == hashed,
+        )
+    )
+
+    matched: RefreshToken | None = result.scalar_one_or_none()
 
     if matched is None or matched.is_expired():
         raise _invalid
@@ -256,13 +256,13 @@ async def logout(req: RefreshRequest, session: AsyncSessionDep) -> None:
         req: Body containing the ``refresh_token`` to revoke.
         session: Injected async DB session.
     """
-    # Find the matching token row and delete it; silently succeed if not found
-    # (idempotent logout is friendlier than a 404 on double-logout).
-    result = await session.execute(select(RefreshToken))
-    for rt in result.scalars():
-        if verify_refresh_token_hash(req.refresh_token, rt.token_hash):
-            await session.delete(rt)
-            break
+    hashed = hash_refresh_token(req.refresh_token)
+
+    await session.execute(
+        delete(RefreshToken).where(
+            RefreshToken.token_hash == hashed,
+        )
+    )
 
 
 @plugin_router.get("/me")
