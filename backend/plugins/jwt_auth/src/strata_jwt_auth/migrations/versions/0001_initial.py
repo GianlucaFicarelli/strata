@@ -22,7 +22,7 @@ def upgrade() -> None:
         sa.Column(
             "id",
             sa.String(36),
-            sa.ForeignKey("strata_users.id", ondelete="CASCADE"),
+            sa.ForeignKey("core_users.id", ondelete="CASCADE"),
             primary_key=True,
         ),
         sa.Column("username", sa.String(255), nullable=False),

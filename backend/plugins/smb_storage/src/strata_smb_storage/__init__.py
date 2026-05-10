@@ -6,7 +6,7 @@ Contributes:
   Windows share via the SMB protocol.
 - :class:`~strata.plugins.protocols.DbContributor`: declares the
   ``smb_storage_credentials`` table so per-user credentials can be stored.
-  The ``user_id`` FK points at ``strata_users.id`` — no dependency on any
+  The ``user_id`` FK points at ``core_users.id`` — no dependency on any
   specific auth plugin.
 
 Entry point::
@@ -189,7 +189,7 @@ class SmbStoragePlugin(BackendPlugin):
 
     - ``registry.storage``: :class:`SmbStorageBackend`
     - ``registry.db``: :class:`SmbStorageDbContributor` — declares
-      ``smb_storage_credentials`` with ``user_id FK → strata_users.id``.
+      ``smb_storage_credentials`` with ``user_id FK → core_users.id``.
     """
 
     id = "smb_storage"

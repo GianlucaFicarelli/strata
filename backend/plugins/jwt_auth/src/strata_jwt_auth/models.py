@@ -4,17 +4,17 @@ Tables
 ------
 ``jwt_auth_users``
     Auth-specific extension of the platform identity.  The ``id`` column is
-    both PK and FK to ``strata_users.id`` (one-to-one, CASCADE delete).
+    both PK and FK to ``core_users.id`` (one-to-one, CASCADE delete).
     Deleting the core user row removes the JWT auth row automatically.
 
 ``jwt_auth_refresh_tokens``
     Server-side refresh token store.  FKs to ``jwt_auth_users.id``.
 
-Why FK to ``strata_users`` and not a standalone PK
+Why FK to ``core_users`` and not a standalone PK
 ----------------------------------------------------
 Storage plugins (SMB, S3, …) need to store per-user credentials and must
 FK to a user table that does not depend on any specific auth backend.
-``strata_users`` is that stable target.  ``jwt_auth_users`` is a pure
+``core_users`` is that stable target.  ``jwt_auth_users`` is a pure
 extension of it — same UUID, extra auth columns.
 """
 
@@ -30,11 +30,11 @@ from strata.utils import create_uuid, utcnow
 class User(Base):
     """JWT auth extension of the platform user identity.
 
-    Shares its primary key with ``strata_users`` (one-to-one).  Deleting
-    the ``strata_users`` row cascades here automatically.
+    Shares its primary key with ``core_users`` (one-to-one).  Deleting
+    the ``core_users`` row cascades here automatically.
 
     Attributes:
-        id: UUID, PK and FK → ``strata_users.id`` ON DELETE CASCADE.
+        id: UUID, PK and FK → ``core_users.id`` ON DELETE CASCADE.
         username: Unique login name; case-sensitive.
         hashed_password: Argon2id hash of the plain-text password.
         is_admin: Full administrative access flag.
@@ -46,7 +46,7 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("strata_users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         primary_key=True,
         index=True,
     )

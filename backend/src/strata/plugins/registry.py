@@ -343,7 +343,7 @@ class DbRegistry:
     """Registry of :class:`~strata.plugins.protocols.DbContributor` instances.
 
     Contributors are stored and iterated in insertion order, which is the
-    migration execution order.  The core ``strata_users`` contributor is
+    migration execution order.  The core ``core_users`` contributor is
     always inserted before plugins register, ensuring that tables referenced
     by plugin FKs exist before those plugins' migrations run.
     """

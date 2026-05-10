@@ -1,6 +1,6 @@
 """Core user identity table.
 
-This module defines the single platform-level user record: ``strata_users``.
+This module defines the single platform-level user record: ``core_users``.
 It contains only the identity — a UUID and a creation timestamp.
 Auth-specific data (password hashes, tokens) lives in the ``jwt_auth``
 plugin.  Per-user storage credentials live in their respective plugins.
@@ -12,7 +12,7 @@ does not depend on which auth backend is installed.  If the FK pointed at
 ``jwt_auth_users``, every storage plugin would gain an implicit dependency on
 the JWT auth plugin.  By placing the identity table in the core we have:
 
-- A single, stable FK target for all plugins: ``strata_users.id``.
+- A single, stable FK target for all plugins: ``core_users.id``.
 - Clean cascade deletes: deleting a user row removes all plugin-owned rows
   (credentials, tokens, preferences) automatically.
 - Auth plugins are free to come and go without breaking storage plugins.
@@ -22,8 +22,8 @@ Migration ordering
 The :class:`CoreUsersDbContributor` is registered into the
 :class:`~strata.plugins.registry.DbRegistry` by :func:`strata.main.lifespan`
 *before* ``plugin_loader.load_and_register()`` is called.  Alembic therefore
-runs the ``strata_core`` migration before any plugin migration, guaranteeing
-that ``strata_users`` exists when plugins that FK to it are migrated.
+runs the ``core`` migration before any plugin migration, guaranteeing
+that ``core_users`` exists when plugins that FK to it are migrated.
 """
 
 from datetime import datetime
@@ -47,7 +47,7 @@ class StrataUser(Base):
         created_at: UTC timestamp set by the database server on insert.
     """
 
-    __tablename__ = "strata_users"
+    __tablename__ = "core_users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid, index=True)
     created_at: Mapped[datetime] = mapped_column(

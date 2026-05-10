@@ -62,12 +62,12 @@ class FileEntry(BaseModel):
 class AuthUser(BaseModel):
     """Minimal representation of an authenticated user.
 
-    The ``id`` field is always the corresponding ``strata_users.id`` UUID.
+    The ``id`` field is always the corresponding ``core_users.id`` UUID.
     This is the stable cross-plugin identity: any plugin that stores
     per-user data should use this value as its ``user_id`` foreign key.
 
     Attributes:
-        id: Opaque UUID string; corresponds to ``strata_users.id``.
+        id: Opaque UUID string; corresponds to ``core_users.id``.
         username: Display name or login handle.
         is_admin: ``True`` if the user has administrative privileges.
     """
@@ -381,9 +381,9 @@ class DbContributor(Protocol):
     Migration ordering
     ------------------
     Contributors are migrated in registration order.  The core
-    ``strata_users`` contributor is always registered first (before any
+    ``core_users`` contributor is always registered first (before any
     plugin's ``register()`` runs), so plugins that declare a FK to
-    ``strata_users.id`` are safe to migrate after it.
+    ``core_users.id`` are safe to migrate after it.
 
     Attributes:
         metadata: The SQLAlchemy :class:`~sqlalchemy.MetaData` for this

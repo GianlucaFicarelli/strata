@@ -14,7 +14,7 @@ revision: str = "0001"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = ("smb_storage",)
 depends_on: str | Sequence[str] | None = None
-# Ordering guarantee: strata_users is created by the core migration which
+# Ordering guarantee: core_users is created by the core migration which
 # always runs before plugin migrations (see DbRegistry insertion order in
 # strata.main.lifespan).
 
@@ -27,7 +27,7 @@ def upgrade() -> None:
             "user_id",
             sa.String(36),
             # FK to the platform identity — no dependency on jwt_auth.
-            sa.ForeignKey("strata_users.id", ondelete="CASCADE"),
+            sa.ForeignKey("core_users.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column("host", sa.String(255), nullable=False),
