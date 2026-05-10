@@ -18,23 +18,13 @@ FK to a user table that does not depend on any specific auth backend.
 extension of it — same UUID, extra auth columns.
 """
 
-import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from strata.db.base import plugin_base
-
-Base = plugin_base("strata_jwt_auth")
-
-
-def _uuid() -> str:
-    return str(uuid.uuid4())
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
+from strata.db.base import Base
+from strata.utils import create_uuid, utcnow
 
 
 class User(Base):
@@ -65,7 +55,7 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=_utcnow,
+        server_default=func.now(),
         nullable=False,
     )
 
@@ -91,7 +81,7 @@ class RefreshToken(Base):
 
     __tablename__ = "jwt_auth_refresh_tokens"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid)
     user_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("jwt_auth_users.id", ondelete="CASCADE"),
@@ -102,7 +92,7 @@ class RefreshToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=_utcnow,
+        server_default=func.now(),
         nullable=False,
     )
 
@@ -110,7 +100,7 @@ class RefreshToken(Base):
 
     def is_expired(self) -> bool:
         """Return ``True`` if this token has passed its expiry timestamp."""
-        return _utcnow() >= self.expires_at
+        return utcnow() >= self.expires_at
 
     def __repr__(self) -> str:
         return f"<RefreshToken id={self.id!r} user_id={self.user_id!r} expires={self.expires_at}>"

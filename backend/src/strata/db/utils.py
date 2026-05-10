@@ -47,11 +47,12 @@ class MigrationEnv:
         self,
         *,
         target_metadata: MetaData,
-        version_table: str,
+        plugin_id: str,
     ) -> None:
         self.config: Config = context.config
         self.target_metadata = target_metadata
-        self.version_table = version_table
+        self.version_table = f"alembic_version_{plugin_id}"
+        self.table_prefix = f"{plugin_id}_"
 
     def _configure(self, **kwargs) -> None:
         context.configure(
@@ -63,7 +64,7 @@ class MigrationEnv:
             # Without this, tables from other plugins or the app appear as
             # "unmapped" and generate spurious drop_table statements.
             include_object=lambda obj, name, type_, reflected, compare_to: (
-                name in self.target_metadata.tables if type_ == "table" else True
+                name.startswith(self.table_prefix) if name and type_ == "table" else True
             ),
             **kwargs,
         )
@@ -147,20 +148,3 @@ async def run_migrations(engine: AsyncEngine, migrations_dir: Path) -> None:
     L.info("Running Alembic migrations from %s", migrations_dir)
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
     L.info("Migrations complete for %s", migrations_dir.parent.name)
-
-
-def version_table_name(plugin_id: str) -> str:
-    """Return the Alembic version table name for *plugin_id*.
-
-    Each plugin that uses Alembic **must** pass this name as ``version_table``
-    in every ``context.configure()`` call inside its ``env.py``.
-
-    Convention: ``"alembic_version_<plugin_id>"``
-
-    Args:
-        plugin_id: The plugin's ``BackendPlugin.id``, e.g. ``"jwt_auth"``.
-
-    Returns:
-        Table name string, e.g. ``"alembic_version_jwt_auth"``.
-    """
-    return f"alembic_version_{plugin_id}"

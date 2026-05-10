@@ -17,19 +17,13 @@ The column type is ``LargeBinary`` to accommodate any symmetric cipher
 output (AES-GCM ciphertext + nonce + tag).
 """
 
-import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, String
+from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from strata.db.base import plugin_base
-
-Base = plugin_base("strata_smb_storage")
-
-
-def _uuid() -> str:
-    return str(uuid.uuid4())
+from strata.db.base import Base
+from strata.utils import create_uuid
 
 
 class SmbCredential(Base):
@@ -55,7 +49,7 @@ class SmbCredential(Base):
 
     __tablename__ = "smb_storage_credentials"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid)
     user_id: Mapped[str] = mapped_column(
         String(36),
         # FK to the platform identity table — no coupling to jwt_auth.
@@ -70,13 +64,13 @@ class SmbCredential(Base):
     encrypted_password: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        server_onupdate=func.now(),
         nullable=False,
     )
 

@@ -1,10 +1,6 @@
 """Alembic migration environment for the Strata core schema."""
 
 from strata.db.base import Base
-from strata.db.utils import MigrationEnv, version_table_name
+from strata.db.utils import MigrationEnv
 
-env = MigrationEnv(
-    target_metadata=Base.metadata,
-    version_table=version_table_name("strata_core"),
-)
-env.run()
+MigrationEnv(target_metadata=Base.metadata, plugin_id="core").run()
