@@ -12,12 +12,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from strata_jwt_auth.config import settings as jwt_settings
+from strata_jwt_auth.router import plugin_router
 
 from strata.db.session import session_scope
 from strata.dependencies import db_session_dep, session_factory_dep
-from strata_jwt_auth.router import plugin_router
-from strata_jwt_auth.config import settings as jwt_settings
-
 
 # ── App fixture ───────────────────────────────────────────────────────────────
 

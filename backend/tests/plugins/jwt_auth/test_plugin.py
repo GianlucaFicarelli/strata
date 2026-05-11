@@ -4,15 +4,19 @@ No HTTP server needed — tests exercise the plugin class and auth provider
 directly.
 """
 
+import asyncio
+
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from strata.plugins.registry import PluginRegistry
 from strata_jwt_auth.config import settings as jwt_settings
-from strata_jwt_auth.plugin import JwtAuthPlugin, PasswordAuthProvider
-from strata_jwt_auth.router import plugin_router
+from strata_jwt_auth.models import User
+from strata_jwt_auth.plugin import JwtAuthDbContributor, JwtAuthPlugin, PasswordAuthProvider
+from strata_jwt_auth.utils import hash_password
 
+from strata.db.models import CoreUser
+from strata.db.session import session_scope
+from strata.plugins.registry import PluginRegistry
 
 # ── JwtAuthPlugin.register ────────────────────────────────────────────────────
 
@@ -52,8 +56,6 @@ def test_plugin_describe():
 
 
 def test_plugin_migrations_dir_exists():
-    from strata_jwt_auth.plugin import JwtAuthDbContributor
-
     contributor = JwtAuthDbContributor()
     assert contributor.migrations_dir.exists()
     assert (contributor.migrations_dir / "env.py").exists()
@@ -90,10 +92,6 @@ async def test_password_auth_provider_raises_401_for_wrong_credentials(
     monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
 
     # Register a user first via the DB
-    from strata.db.models import CoreUser
-    from strata.db.session import session_scope
-    from strata_jwt_auth.models import User
-    from strata_jwt_auth.utils import hash_password
 
     async with session_scope(session_factory) as session:
         core = CoreUser()
@@ -113,10 +111,6 @@ async def test_password_auth_provider_raises_401_for_wrong_credentials(
 async def test_password_auth_provider_returns_auth_user_on_success(
     session_factory: async_sessionmaker[AsyncSession],
 ):
-    from strata.db.models import CoreUser
-    from strata.db.session import session_scope
-    from strata_jwt_auth.models import User
-    from strata_jwt_auth.utils import hash_password
 
     async with session_scope(session_factory) as session:
         core = CoreUser()
@@ -136,7 +130,6 @@ async def test_password_auth_provider_returns_auth_user_on_success(
 def test_password_auth_provider_raises_runtime_error_without_factory():
     provider = PasswordAuthProvider()
 
-    import asyncio
     with pytest.raises(RuntimeError, match="session factory"):
         asyncio.get_event_loop().run_until_complete(
             provider.authenticate({"username": "x", "password": "y"})

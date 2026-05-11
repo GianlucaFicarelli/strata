@@ -9,24 +9,24 @@ Tests cover:
 - verify_token delegation to PasswordAuthProvider
 """
 
-import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from strata_jwt_auth.config import settings as jwt_settings
+from strata_jwt_auth.models import User
+from strata_jwt_auth.plugin import PasswordAuthProvider
+from strata_jwt_auth.utils import create_access_token, hash_password
 
 from strata.api.auth import router as auth_router
+from strata.db.models import CoreUser
+from strata.db.session import session_scope
 from strata.dependencies import (
     auth_registry_dep,
-    optional_current_user_dep,
-    require_current_user_dep,
-    session_factory_dep,
+    storage_registry_dep,
 )
-from strata.db.session import session_scope
-from strata.plugins.protocols import AuthUser
-from strata.plugins.registry import AuthRegistry
-from strata_jwt_auth.config import settings as jwt_settings
-from strata_jwt_auth.plugin import PasswordAuthProvider
-
+from strata.dependencies import auth_registry_dep as dep
+from strata.main import app as main_app
+from strata.plugins.registry import AuthRegistry, StorageRegistry
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -99,10 +99,6 @@ async def test_me_with_valid_token_returns_user(
     monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
 
     # Register a user
-    from strata.db.models import CoreUser
-    from strata_jwt_auth.models import User
-    from strata_jwt_auth.utils import create_access_token, hash_password
-
     async with session_scope(session_factory) as session:
         core = CoreUser()
         session.add(core)
@@ -140,17 +136,14 @@ async def test_me_with_invalid_token_returns_401(
 
 async def test_optional_dep_returns_none_when_no_providers():
     """With an empty AuthRegistry, the dep should return None (not raise)."""
-    from strata.main import app as main_app
-    from strata.dependencies import auth_registry_dep as dep
 
-    main_app.dependency_overrides[dep] = lambda: _make_auth_registry()
+    main_app.dependency_overrides[dep] = _make_auth_registry
 
     async with AsyncClient(transport=ASGITransport(app=main_app), base_url="http://test") as c:
         # /api/auth/providers uses auth_registry but not the optional dep;
         # use a files endpoint which does use OptionalCurrentUserDep
-        from strata.dependencies import storage_registry_dep
-        from strata.plugins.registry import StorageRegistry
-        main_app.dependency_overrides[storage_registry_dep] = lambda: StorageRegistry()
+
+        main_app.dependency_overrides[storage_registry_dep] = StorageRegistry
         resp = await c.get("/api/files/list", params={"path": "/", "backend": "nonexistent"})
     # 400 (unknown backend) proves the dep resolved (didn't 401)
     assert resp.status_code == 400
@@ -169,10 +162,6 @@ async def test_auth_registry_verify_token_delegates(
     monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
     monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
     monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-
-    from strata.db.models import CoreUser
-    from strata_jwt_auth.models import User
-    from strata_jwt_auth.utils import create_access_token, hash_password
 
     async with session_scope(session_factory) as session:
         core = CoreUser()
@@ -198,11 +187,14 @@ async def test_auth_registry_verify_token_returns_none_for_empty_registry():
 
 async def test_auth_provider_verify_token_default_returns_none():
     """A provider that doesn't implement verify_token returns None (protocol default)."""
+
     class _CredentialOnlyProvider:
         id = "ldap"
         name = "LDAP"
+
         async def authenticate(self, credentials):
             return None
+
         # No verify_token override — inherits protocol default of None
 
     reg = AuthRegistry()

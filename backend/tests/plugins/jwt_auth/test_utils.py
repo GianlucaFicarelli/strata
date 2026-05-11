@@ -3,13 +3,13 @@
 All tests are pure-Python, no DB or HTTP needed.
 """
 
-import time
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import jwt
 import pytest
 from fastapi import HTTPException
-
+from strata_jwt_auth.config import settings
 from strata_jwt_auth.utils import (
     auth_user_from_token,
     create_access_token,
@@ -21,8 +21,6 @@ from strata_jwt_auth.utils import (
     user_to_auth_user,
     verify_password,
 )
-from strata_jwt_auth.config import settings
-
 
 # ── Password helpers ──────────────────────────────────────────────────────────
 
@@ -51,9 +49,6 @@ def test_hash_password_is_unique_per_call():
 
 
 # ── JWT access token ──────────────────────────────────────────────────────────
-
-
-from types import SimpleNamespace
 
 
 def _make_user(**kwargs) -> SimpleNamespace:

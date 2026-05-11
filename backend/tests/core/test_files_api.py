@@ -8,13 +8,13 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from strata.dependencies import auth_registry_dep, storage_registry_dep
 from strata.main import app
 from strata.plugins.protocols import FileEntry, StorageBackend
 from strata.plugins.registry import AuthRegistry, StorageRegistry
-
 
 # ── In-memory stub backend ────────────────────────────────────────────────────
 
@@ -30,8 +30,6 @@ class _MemoryBackend:
         self._files: dict[str, bytes] = {}
 
     async def list(self, path: str) -> list[FileEntry]:
-        from fastapi import HTTPException
-
         if path not in self._dirs:
             raise HTTPException(status_code=404, detail="Path not found")
 
@@ -56,8 +54,6 @@ class _MemoryBackend:
         return entries
 
     async def read(self, path: str) -> AsyncIterator[bytes]:
-        from fastapi import HTTPException
-
         if path not in self._files:
             raise HTTPException(status_code=404, detail="File not found")
 
@@ -75,8 +71,6 @@ class _MemoryBackend:
         self._files[path] = b"".join(chunks)
 
     async def delete(self, path: str) -> None:
-        from fastapi import HTTPException
-
         if path in self._files:
             del self._files[path]
         elif path in self._dirs:
@@ -193,7 +187,8 @@ async def test_move_file(mem_backend: _MemoryBackend, http: AsyncClient):
 async def test_list_unknown_backend_returns_400(override_storage):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get(
-            "/api/files/list", params={"path": "/", "backend": "nonexistent"}
+            "/api/files/list",
+            params={"path": "/", "backend": "nonexistent"},
         )
     assert resp.status_code == 400
 

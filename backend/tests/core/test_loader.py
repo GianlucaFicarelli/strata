@@ -6,12 +6,9 @@ so no real packages need to be installed.
 
 import logging
 
-import pytest
-
 from strata.plugins.base import BackendPlugin
 from strata.plugins.loader import PluginLoader, _discover_entry_points, _load_entry_point
 from strata.plugins.registry import PluginRegistry
-
 
 # ── Stub plugin ───────────────────────────────────────────────────────────────
 
@@ -207,11 +204,15 @@ async def test_loader_shutdown_calls_on_shutdown_in_reverse(monkeypatch):
 
     class _A(BackendPlugin):
         id, name, version, description = "a", "A", "1.0.0", ""
-        async def on_shutdown(self): order.append("a")
+
+        async def on_shutdown(self):
+            order.append("a")
 
     class _B(BackendPlugin):
         id, name, version, description = "b", "B", "1.0.0", ""
-        async def on_shutdown(self): order.append("b")
+
+        async def on_shutdown(self):
+            order.append("b")
 
     a, b = _A(), _B()
     eps = [_make_ep("a"), _make_ep("b")]

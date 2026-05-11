@@ -5,6 +5,7 @@ composite PluginRegistry dataclass.  All objects are lightweight stubs —
 no database, no HTTP.
 """
 
+import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -25,22 +26,24 @@ from strata.plugins.registry import (
     ThumbRegistry,
 )
 
-
 # ── Minimal stubs ─────────────────────────────────────────────────────────────
 
 
 class _Storage:
-    def __init__(self, id: str, name: str = "Test") -> None:
+    def __init__(self, id: str, name: str = "Test") -> None:  # noqa: A002
         self.id = id
         self.name = name
 
-    async def list(self, path: str) -> list[FileEntry]: return []
+    async def list(self, path: str) -> list[FileEntry]:
+        return []
+
     async def read(self, path: str) -> AsyncIterator[bytes]: ...
     async def write(self, path: str, stream: AsyncIterator[bytes]) -> None: ...
     async def delete(self, path: str) -> None: ...
     async def mkdir(self, path: str) -> None: ...
     async def move(self, src: str, dst: str) -> None: ...
-    def describe(self) -> dict[str, Any]: return {"id": self.id, "name": self.name}
+    def describe(self) -> dict[str, Any]:
+        return {"id": self.id, "name": self.name}
 
 
 class _FileHandler:
@@ -55,7 +58,7 @@ class _RouteProvider:
 
 
 class _AuthProvider:
-    def __init__(self, id: str = "test_auth") -> None:
+    def __init__(self, id: str = "test_auth") -> None:  # noqa: A002
         self.id = id
         self.name = "Test Auth"
 
@@ -69,7 +72,9 @@ class _SearchProvider:
     def __init__(self, backend_id: str = "local") -> None:
         self.backend_id = backend_id
 
-    async def search(self, query: str, path: str = "/", *, limit: int = 50): return []
+    async def search(self, query: str, path: str = "/", *, limit: int = 50):
+        return []
+
     async def index(self, entry: FileEntry, content: AsyncIterator[bytes]) -> None: ...
     async def deindex(self, path: str) -> None: ...
 
@@ -81,7 +86,9 @@ class _ThumbProvider:
     def can_handle(self, mime: str) -> bool:
         return mime.startswith(self._prefix)
 
-    async def generate(self, stream: AsyncIterator[bytes], *, width: int = 256, height: int = 256) -> bytes:
+    async def generate(
+        self, stream: AsyncIterator[bytes], *, width: int = 256, height: int = 256
+    ) -> bytes:
         return b"fake-thumb"
 
 
@@ -116,7 +123,6 @@ def test_storage_all_returns_in_order():
 
 
 def test_storage_replace_logs_warning(caplog):
-    import logging
     reg = StorageRegistry()
     reg.add(_Storage("dup"))
     with caplog.at_level(logging.WARNING, logger="strata.plugins.registry"):
@@ -183,7 +189,7 @@ async def test_auth_registry_tries_providers_in_order():
     calls: list[str] = []
 
     class Recorder(_AuthProvider):
-        def __init__(self, id: str) -> None:
+        def __init__(self, id: str) -> None:  # noqa: A002
             super().__init__(id)
             self._my_id = id
 
