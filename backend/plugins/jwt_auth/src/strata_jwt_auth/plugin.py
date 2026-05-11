@@ -12,7 +12,7 @@ from strata.plugins.protocols import AuthUser
 from strata.plugins.registry import PluginRegistry
 from strata_jwt_auth.models import Base, User
 from strata_jwt_auth.router import plugin_router
-from strata_jwt_auth.utils import user_to_auth_user, verify_password
+from strata_jwt_auth.utils import auth_user_from_token, user_to_auth_user, verify_password
 
 # ── DbContributor ─────────────────────────────────────────────────────────────
 
@@ -108,6 +108,41 @@ class PasswordAuthProvider:
             )
 
         return user_to_auth_user(user)
+
+    async def verify_token(self, token: str) -> AuthUser | None:
+        """Verify a JWT access token and return the corresponding user.
+
+        This is the token-side of the auth protocol, called by the core
+        ``require_current_user_dep`` dependency on every protected request.
+        The core never imports JWT-specific code — it only calls this method.
+
+        Args:
+            token: Raw JWT string from the ``Authorization: Bearer`` header.
+
+        Returns:
+            An :class:`~strata.plugins.protocols.AuthUser` if the token is
+            valid, or ``None`` if it is not a JWT we issued (so other
+            providers get a chance).
+
+        Raises:
+            HTTPException: 401 if the token looks like ours but is
+                invalid or expired.
+        """
+        return auth_user_from_token(token)
+
+    def describe(self) -> dict:
+        """Return provider metadata for the frontend.
+
+        The frontend reads ``login_url`` to know where to POST credentials.
+
+        Returns:
+            A dict with ``id``, ``name``, and ``login_url``.
+        """
+        return {
+            "id": self.id,
+            "name": self.name,
+            "login_url": "/api/plugins/jwt_auth/login",
+        }
 
 
 # ── RouteProvider ─────────────────────────────────────────────────────────────

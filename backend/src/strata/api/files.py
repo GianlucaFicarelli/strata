@@ -1,22 +1,35 @@
 """Generic file API for Strata.
 
-Every endpoint accepts a ``?backend=<id>`` query parameter (default:
-``"local"``).  All storage logic is delegated to the selected
-``StorageBackend`` — this module only handles HTTP concerns.
+Every endpoint accepts a ``?backend=<id>`` query parameter.  All storage
+logic is delegated to the selected ``StorageBackend`` — this module only
+handles HTTP concerns.
+
+Authentication
+--------------
+All endpoints require a valid bearer token when at least one
+``AuthProvider`` is registered (i.e. an auth plugin is loaded).  When no
+auth plugin is active the ``current_user`` parameter is ``None`` and
+requests proceed unauthenticated — useful for local/dev deployments.
+
+The dependency used here is ``OptionalCurrentUserDep``: it resolves to the
+authenticated user when a token is present and valid, or ``None`` when no
+token is provided *and* the endpoint allows anonymous access.
+
+To switch to mandatory authentication, replace ``OptionalCurrentUserDep``
+with ``CurrentUserDep`` or check ``current_user is None`` inside each
+handler and raise 401.
 """
 
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from strata.dependencies import StorageRegistryDep, storage_backend_dep
+from strata.dependencies import OptionalCurrentUserDep, StorageRegistryDep, storage_backend_dep
 from strata.plugins.protocols import FileEntry, StorageBackend
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -40,17 +53,9 @@ class MoveRequest(BaseModel):
 async def list_dir(
     path: Annotated[str, Query(description="Directory path to list")],
     storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
+    current_user: OptionalCurrentUserDep,
 ) -> list[FileEntry]:
-    """List the contents of a directory on the selected backend.
-
-    Args:
-        path: Backend-relative directory path.
-        storage: Resolved storage backend.
-
-    Returns:
-        A list of ``FileEntry`` objects.
-
-    """
+    """List the contents of a directory on the selected backend."""
     return await storage.list(path)
 
 
@@ -58,17 +63,9 @@ async def list_dir(
 async def download_file(
     path: Annotated[str, Query(description="File path to download")],
     storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
+    current_user: OptionalCurrentUserDep,
 ) -> StreamingResponse:
-    """Stream a file from the selected backend as an octet-stream.
-
-    Args:
-        path: Backend-relative file path.
-        storage: Resolved storage backend.
-
-    Returns:
-        A ``StreamingResponse`` with ``Content-Disposition: attachment``.
-
-    """
+    """Stream a file from the selected backend as an octet-stream."""
     stream = await storage.read(path)
     filename = path.rstrip("/").split("/")[-1]
     return StreamingResponse(
@@ -83,18 +80,9 @@ async def upload_file(
     path: Annotated[str, Query(description="Directory to upload into")],
     file: Annotated[UploadFile, File()],
     storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
+    current_user: OptionalCurrentUserDep,
 ) -> dict:
-    """Upload a file to the selected backend.
-
-    Args:
-        path: Backend-relative target directory.
-        file: The uploaded file provided as multipart form data.
-        storage: Resolved storage backend.
-
-    Returns:
-        A dict with ``status``, ``path``, and ``backend`` keys.
-
-    """
+    """Upload a file to the selected backend."""
     dest = str(Path(path) / (file.filename or "noname"))
 
     async def _stream() -> AsyncIterator[bytes]:
@@ -109,17 +97,9 @@ async def upload_file(
 async def delete_path(
     path: Annotated[str, Query(description="Path to delete")],
     storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
+    current_user: OptionalCurrentUserDep,
 ) -> dict:
-    """Delete a file or directory on the selected backend.
-
-    Args:
-        path: Backend-relative path to remove.
-        storage: Resolved storage backend.
-
-    Returns:
-        A dict with a ``"status": "ok"`` key.
-
-    """
+    """Delete a file or directory on the selected backend."""
     await storage.delete(path)
     return {"status": "ok"}
 
@@ -128,17 +108,9 @@ async def delete_path(
 async def make_dir(
     path: Annotated[str, Query(description="Directory path to create")],
     storage: Annotated[StorageBackend, Depends(storage_backend_dep)],
+    current_user: OptionalCurrentUserDep,
 ) -> dict:
-    """Create a directory on the selected backend.
-
-    Args:
-        path: Backend-relative path of the new directory.
-        storage: Resolved storage backend.
-
-    Returns:
-        A dict with a ``"status": "ok"`` key.
-
-    """
+    """Create a directory on the selected backend."""
     await storage.mkdir(path)
     return {"status": "ok"}
 
@@ -147,18 +119,9 @@ async def make_dir(
 async def move_path(
     storage_registry: StorageRegistryDep,
     req: MoveRequest,
+    current_user: OptionalCurrentUserDep,
 ) -> dict:
-    """Move or rename a path on the selected backend.
-
-    Source and destination must reside on the same backend.
-
-    Args:
-        req: Move request specifying ``src``, ``dst``, and ``backend``.
-
-    Returns:
-        A dict with a ``"status": "ok"`` key.
-
-    """
+    """Move or rename a path on the selected backend."""
     storage = storage_registry.get(req.backend)
     await storage.move(req.src, req.dst)
     return {"status": "ok"}

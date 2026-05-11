@@ -207,6 +207,26 @@ class AuthRegistry:
                 return user
         return None
 
+    async def verify_token(self, token: str) -> AuthUser | None:
+        """Try each provider's :meth:`~AuthProvider.verify_token` in order.
+
+        Providers that do not implement token verification (the default is to
+        return ``None``) are silently skipped.  The first provider that returns
+        a non-``None`` :class:`~strata.plugins.protocols.AuthUser` wins.
+
+        Args:
+            token: Raw bearer token string from the ``Authorization`` header.
+
+        Returns:
+            The authenticated :class:`~strata.plugins.protocols.AuthUser`, or
+            ``None`` if no provider recognised the token.
+        """
+        for provider in self._providers:
+            user = await provider.verify_token(token)
+            if user is not None:
+                return user
+        return None
+
     def all(self) -> list[AuthProvider]:
         """Return every registered auth provider in registration order.
 

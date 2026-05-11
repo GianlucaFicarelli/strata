@@ -267,6 +267,30 @@ class AuthProvider(Protocol):
         """
         ...
 
+    async def verify_token(self, token: str) -> AuthUser | None:
+        """Verify a bearer token and return the corresponding user.
+
+        This method is **optional** — providers that issue tokens (e.g. JWT,
+        OIDC) should implement it; credential-only providers (e.g. LDAP used
+        solely for login) may omit it.  The default implementation returns
+        ``None``, meaning "this provider does not handle this token".
+
+        The core's ``require_current_user_dep`` dependency calls this in
+        registration order, stopping at the first non-``None`` result.
+        This keeps the core completely decoupled from any specific token format.
+
+        Args:
+            token: Raw bearer token string from the ``Authorization`` header.
+
+        Returns:
+            An :class:`AuthUser` if the token is valid, or ``None`` if this
+            provider does not recognise or cannot verify the token.
+
+        Raises:
+            HTTPException: 401 if the token is recognised but invalid/expired.
+        """
+        return None
+
 
 @runtime_checkable
 class SearchProvider(Protocol):

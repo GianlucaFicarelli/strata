@@ -26,6 +26,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from strata.api.auth import router as auth_router
 from strata.api.files import router as files_router
 from strata.config import settings
 from strata.db.plugin import CoreUsersDbContributor
@@ -100,6 +101,7 @@ app.add_middleware(
 )
 
 app.include_router(files_router)
+app.include_router(auth_router)
 
 
 @app.get("/api/backends", tags=["meta"])
