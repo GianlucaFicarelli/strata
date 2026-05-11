@@ -57,4 +57,4 @@ async def db_session_dep(
 StorageRegistryDep = Annotated[StorageRegistry, Depends(storage_registry_dep)]
 FileHandlerRegistryDep = Annotated[FileHandlerRegistry, Depends(file_handlers_registry_dep)]
 StorageBackendDep = Annotated[StorageBackend, Depends(storage_backend_dep)]
-AsyncSessionDep = Annotated[AsyncSession, Depends(db_session_dep)]
+AsyncSessionDep = Annotated[AsyncSession, Depends(db_session_dep, scope="function")]
