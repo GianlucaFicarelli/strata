@@ -127,10 +127,8 @@ async def test_password_auth_provider_returns_auth_user_on_success(
     assert auth_user.username == "carol"
 
 
-def test_password_auth_provider_raises_runtime_error_without_factory():
+async def test_password_auth_provider_raises_runtime_error_without_factory():
     provider = PasswordAuthProvider()
 
     with pytest.raises(RuntimeError, match="session factory"):
-        asyncio.get_event_loop().run_until_complete(
-            provider.authenticate({"username": "x", "password": "y"})
-        )
+        await provider.authenticate({"username": "x", "password": "y"})

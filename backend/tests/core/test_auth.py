@@ -195,7 +195,8 @@ async def test_auth_provider_verify_token_default_returns_none():
         async def authenticate(self, credentials):
             return None
 
-        # No verify_token override — inherits protocol default of None
+        async def verify_token(self, token):
+            return None
 
     reg = AuthRegistry()
     reg.add(_CredentialOnlyProvider())
