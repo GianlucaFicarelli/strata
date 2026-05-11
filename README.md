@@ -228,13 +228,17 @@ All settings are read from environment variables (prefix `STRATA_`) or a `.env` 
 | Variable | Default | Description |
 |---|---|---|
 | `STRATA_ENABLED_PLUGINS` | see `config.py` | Comma-separated plugin entry point names to load |
+| `STRATA_DB_URL` | `sqlite+aiosqlite:///$HOME/.strata/strata.db` | Shared async database URL (use `postgresql+asyncpg://…` in production) |
+| `STRATA_DB_ECHO` | `false` | Log all SQL statements when `true` |
 | `STRATA_LOCAL_ROOT` | `$HOME` | Root directory for `local_storage` |
 | `STRATA_COLLABORA_URL` | `http://collabora:9980` | Collabora Online base URL |
 | `STRATA_COLLABORA_SECRET` | `change-me` | WOPI shared secret |
 | `STRATA_S3_BUCKET` | `""` | S3 bucket name |
 | `STRATA_AWS_REGION` | `us-east-1` | AWS region |
 | `STRATA_JWT_SECRET` | `change-me-in-production` | JWT signing secret (`jwt_auth` plugin) |
+| `STRATA_JWT_ALGORITHM` | `HS256` | JWT signing algorithm (`jwt_auth` plugin) |
 | `STRATA_JWT_EXPIRE_MINUTES` | `15` | Access token lifetime in minutes (`jwt_auth` plugin) |
+| `STRATA_JWT_REFRESH_EXPIRE_DAYS` | `30` | Refresh token lifetime in days (`jwt_auth` plugin) |
 | `STRATA_ENTRY_POINT_GROUP` | `strata.plugins` | Entry point group for plugin discovery |
 
 ## Makefile targets
@@ -254,7 +258,9 @@ make check-deps          Verify uv.lock is consistent
 make format              Run ruff format + ruff check --fix
 make lint                Run ruff format --check + ruff check + pyright
 make typecheck           Run pyright only
-make test                Run pytest
+make test                Run all tests (backend + frontend)
+make test-backend        Run pytest for the backend only
+make test-frontend       Run vitest for the frontend only
 make docker-build        Build the Docker image
 make docker-up           Start Strata only
 make docker-up-collabora Start Strata + Collabora Online

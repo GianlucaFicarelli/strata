@@ -90,8 +90,13 @@ lint: ## Run ruff linter over the backend
 typecheck: ## Run pyright type checker over the backend
 	cd $(BACKEND) && $(UV) run pyright .
 
-test: ## Run pytest
-	cd $(BACKEND) && $(UV) run pytest
+test: test-backend test-frontend ## Run all tests (backend + frontend)
+
+test-backend: ## Run pytest for the backend
+	cd $(BACKEND) && $(UV) run pytest tests/
+
+test-frontend: ## Run vitest for the frontend
+	cd $(FRONTEND) && npm run test
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 
