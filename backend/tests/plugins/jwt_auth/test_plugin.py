@@ -4,8 +4,6 @@ No HTTP server needed — tests exercise the plugin class and auth provider
 directly.
 """
 
-import asyncio
-
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
