@@ -93,7 +93,9 @@ typecheck: ## Run pyright type checker over the backend
 test: test-backend test-frontend ## Run all tests (backend + frontend)
 
 test-backend: ## Run pytest for the backend
-	cd $(BACKEND) && $(UV) run pytest tests/
+	cd $(BACKEND) && $(UV) run pytest
+	cd $(BACKEND) && $(UV) run coverage xml
+	cd $(BACKEND) && $(UV) run coverage html
 
 test-frontend: ## Run vitest for the frontend
 	cd $(FRONTEND) && npm run test
