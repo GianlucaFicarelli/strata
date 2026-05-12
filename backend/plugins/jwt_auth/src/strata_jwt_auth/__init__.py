@@ -32,7 +32,7 @@ Configuration (all optional — set in ``.env`` or environment):
     STRATA_JWT_REFRESH_EXPIRE_DAYS=30
 
 Security:
-    Passwords are hashed with Argon2id via passlib.  Access tokens are
+    Passwords are hashed with Argon2id via pwdlib.  Access tokens are
     short-lived JWTs (HS256).  Refresh tokens are random 32-byte values
     stored as SHA-256 hashes; they are rotated on every use.
 """

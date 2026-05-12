@@ -4,7 +4,7 @@ Responsibilities
 ----------------
 - Sign and decode short-lived **access tokens** (PyJWT / HS256).
 - Issue, hash, and verify long-lived **refresh tokens** (random bytes, SHA-256).
-- Hash and verify **passwords** (Argon2id via passlib).
+- Hash and verify **passwords** (Argon2id via pwdlib).
 - Convert a DB :class:`~strata_jwt_auth.models.User` to a protocol
   :class:`~strata.plugins.protocols.AuthUser`.
 
@@ -19,15 +19,13 @@ from typing import Any
 
 import jwt
 from fastapi import HTTPException, status
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
 
 from strata.plugins.protocols import AuthUser
 from strata_jwt_auth.config import settings
 from strata_jwt_auth.models import User
 
-# Argon2id is the winner of the Password Hashing Competition and the
-# recommended algorithm for new applications (OWASP 2024).
-_pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+_password_hash = PasswordHash.recommended()
 
 
 # ── Password helpers ──────────────────────────────────────────────────────────
@@ -42,14 +40,11 @@ def hash_password(plain: str) -> str:
     Returns:
         Argon2id hash string suitable for storage in the database.
     """
-    return _pwd_context.hash(plain)
+    return _password_hash.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Return ``True`` if *plain* matches the stored *hashed* password.
-
-    Passlib transparently re-hashes with the current parameters if the stored
-    hash was produced with weaker settings (hash upgrading).
 
     Args:
         plain: Plain-text password to verify.
@@ -58,7 +53,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     Returns:
         ``True`` if the password is correct, ``False`` otherwise.
     """
-    return _pwd_context.verify(plain, hashed)
+    return _password_hash.verify(plain, hashed)
 
 
 # ── Access token helpers ──────────────────────────────────────────────────────
