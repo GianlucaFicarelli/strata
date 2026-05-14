@@ -30,12 +30,12 @@ from importlib.resources import files
 from pathlib import Path
 
 from sqlalchemy import MetaData
-from strata_storage_smb.models import Base
 
 from strata.plugins.base import BackendPlugin
 from strata.plugins.registry import PluginRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
+from strata_storage_smb.models import Base
 
 # ── DbContributor ─────────────────────────────────────────────────────────────
 
