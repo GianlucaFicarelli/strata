@@ -2,7 +2,7 @@
 
 from strata.plugins.base import BackendPlugin
 from strata.plugins.registry import PluginRegistry
-from strata_jwt_auth.providers import (
+from strata_auth_jwt.providers import (
     JwtAuthDbContributor,
     JwtAuthRouteProvider,
     PasswordAuthProvider,
@@ -18,9 +18,9 @@ class JwtAuthPlugin(BackendPlugin):
       and Alembic migrations directory so the shared engine runs
       ``upgrade head`` at startup automatically.
     - ``registry.auth``: :class:`PasswordAuthProvider` — validates
-      username/password credentials against ``jwt_auth_users``.
+      username/password credentials against ``auth_jwt_users``.
     - ``registry.routes``: :class:`JwtAuthRouteProvider` — mounts the
-      ``/api/plugins/jwt_auth/*`` endpoints.
+      ``/api/plugins/auth_jwt/*`` endpoints.
 
     Session factory injection
     -------------------------
@@ -34,7 +34,7 @@ class JwtAuthPlugin(BackendPlugin):
     but is also available as ``app.state``), this works cleanly.
     """
 
-    id = "jwt_auth"
+    id = "auth_jwt"
     name = "JWT Auth"
     version = "0.1.0"
     description = "Username/password login with JWT access and refresh tokens."
@@ -63,7 +63,7 @@ class JwtAuthPlugin(BackendPlugin):
         yet on ``app.state`` at this exact moment.
 
         Therefore the session factory injection is deferred: the router
-        dependency :func:`~strata_jwt_auth.router.current_user_dep` and the
+        dependency :func:`~strata_auth_jwt.router.current_user_dep` and the
         :data:`~strata.dependencies.db.AsyncSessionDep` both run at request time
         when the factory is already in ``request.state``.  The
         ``PasswordAuthProvider`` is only needed when

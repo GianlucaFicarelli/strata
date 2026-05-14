@@ -12,9 +12,9 @@ Tests cover:
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from strata_jwt_auth.models import User
-from strata_jwt_auth.providers import PasswordAuthProvider
-from strata_jwt_auth.utils import create_access_token, hash_password
+from strata_auth_jwt.models import User
+from strata_auth_jwt.providers import PasswordAuthProvider
+from strata_auth_jwt.utils import create_access_token, hash_password
 
 from strata.api.auth import router as auth_router
 from strata.db.models import CoreUser
@@ -57,7 +57,7 @@ async def test_list_providers_empty():
     assert resp.json() == []
 
 
-async def test_list_providers_returns_jwt_auth(
+async def test_list_providers_returns_auth_jwt(
     session_factory: async_sessionmaker[AsyncSession],
 ):
     provider = _make_jwt_provider(session_factory)

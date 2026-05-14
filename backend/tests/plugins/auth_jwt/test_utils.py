@@ -1,4 +1,4 @@
-"""Unit tests for strata_jwt_auth.utils.
+"""Unit tests for strata_auth_jwt.utils.
 
 All tests are pure-Python, no DB or HTTP needed.
 """
@@ -9,8 +9,8 @@ from unittest.mock import Mock
 import jwt
 import pytest
 from fastapi import HTTPException
-from strata_jwt_auth.models import User
-from strata_jwt_auth.utils import (
+from strata_auth_jwt.models import User
+from strata_auth_jwt.utils import (
     auth_user_from_token,
     create_access_token,
     decode_access_token,
@@ -22,7 +22,7 @@ from strata_jwt_auth.utils import (
     verify_password,
 )
 
-from tests.plugins.jwt_auth.utils import JWT_ALGORITHM, JWT_REFRESH_EXPIRE_DAYS, JWT_SECRET
+from tests.plugins.auth_jwt.utils import JWT_ALGORITHM, JWT_REFRESH_EXPIRE_DAYS, JWT_SECRET
 
 
 def test_hash_password_returns_string():

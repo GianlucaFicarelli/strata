@@ -7,7 +7,7 @@ Table
     domain, username, and an encrypted password for one user on one share.
 
     ``user_id`` is a FK to ``core_users.id`` with CASCADE delete — no
-    dependency on ``jwt_auth`` or any other auth plugin.
+    dependency on ``auth_jwt`` or any other auth plugin.
 
 Encryption
 ----------
@@ -35,7 +35,7 @@ class SmbCredential(Base):
     Attributes:
         id: UUID primary key.
         user_id: FK → ``core_users.id`` ON DELETE CASCADE.
-            No FK to ``jwt_auth_users`` — auth-backend-agnostic by design.
+            No FK to ``auth_jwt_users`` — auth-backend-agnostic by design.
         host: Hostname or IP address of the SMB server.
         share: Share name on that server, e.g. ``"documents"``.
         domain: Windows domain, empty string if not applicable.
@@ -52,7 +52,7 @@ class SmbCredential(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid)
     user_id: Mapped[str] = mapped_column(
         String(36),
-        # FK to the platform identity table — no coupling to jwt_auth.
+        # FK to the platform identity table — no coupling to auth_jwt.
         ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

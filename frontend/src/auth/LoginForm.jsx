@@ -5,7 +5,7 @@
  * uses the OAuth2 password flow (application/x-www-form-urlencoded POST).
  *
  * The active provider's login_url is passed in as a prop so this component
- * knows nothing about jwt_auth specifically.  If multiple providers are
+ * knows nothing about auth_jwt specifically.  If multiple providers are
  * registered, a picker is shown so the user can choose.
  */
 

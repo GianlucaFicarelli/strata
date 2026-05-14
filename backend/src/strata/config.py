@@ -30,7 +30,7 @@ class Settings(BaseSettings):
         "s3_storage",
         "image_preview",
         # "collabora",
-        "jwt_auth",
+        "auth_jwt",
         # "search_fulltext",
     ]
 

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
-    """Request body for ``POST /api/plugins/jwt_auth/register``.
+    """Request body for ``POST /api/plugins/auth_jwt/register``.
 
     Attributes:
         username: Desired login name.  1-255 characters, no leading/trailing
@@ -23,13 +23,13 @@ class RegisterRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """Response body for a successful ``POST /api/plugins/jwt_auth/login``.
+    """Response body for a successful ``POST /api/plugins/auth_jwt/login``.
 
     Attributes:
         access_token: Short-lived signed JWT.  Include in subsequent requests
             as ``Authorization: Bearer <access_token>``.
         refresh_token: Long-lived opaque token.  Store in an ``HttpOnly``
-            cookie and use it with ``POST /api/plugins/jwt_auth/refresh`` to
+            cookie and use it with ``POST /api/plugins/auth_jwt/refresh`` to
             obtain a new access token without re-entering credentials.
         token_type: Always ``"bearer"``.
         expires_in: Access token lifetime in seconds.
@@ -42,7 +42,7 @@ class LoginResponse(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    """Request body for ``POST /api/plugins/jwt_auth/refresh``.
+    """Request body for ``POST /api/plugins/auth_jwt/refresh``.
 
     Attributes:
         refresh_token: The opaque refresh token previously returned by login.
@@ -52,7 +52,7 @@ class RefreshRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """Public representation of a user, returned by ``GET /api/plugins/jwt_auth/me``.
+    """Public representation of a user, returned by ``GET /api/plugins/auth_jwt/me``.
 
     Attributes:
         id: Opaque UUID string.

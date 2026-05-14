@@ -2,19 +2,19 @@
 
 Endpoints
 ---------
-POST /api/plugins/jwt_auth/register
+POST /api/plugins/auth_jwt/register
     Create a new user account.
 
-POST /api/plugins/jwt_auth/login
+POST /api/plugins/auth_jwt/login
     Authenticate with username/password; returns access + refresh tokens.
 
-POST /api/plugins/jwt_auth/refresh
+POST /api/plugins/auth_jwt/refresh
     Exchange a valid refresh token for a new access token.
 
-POST /api/plugins/jwt_auth/logout
+POST /api/plugins/auth_jwt/logout
     Revoke the current refresh token.
 
-GET  /api/plugins/jwt_auth/me
+GET  /api/plugins/auth_jwt/me
     Return the currently authenticated user's profile.
 
 All state lives in the shared Strata database via the
@@ -31,15 +31,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from strata.db.models import CoreUser
 from strata.dependencies.db import AsyncSessionDep
 from strata.schemas.auth import AuthUser
-from strata_jwt_auth.config import settings
-from strata_jwt_auth.models import RefreshToken, User
-from strata_jwt_auth.schemas import (
+from strata_auth_jwt.config import settings
+from strata_auth_jwt.models import RefreshToken, User
+from strata_auth_jwt.schemas import (
     LoginResponse,
     RefreshRequest,
     RegisterRequest,
     UserResponse,
 )
-from strata_jwt_auth.utils import (
+from strata_auth_jwt.utils import (
     auth_user_from_token,
     create_access_token,
     generate_refresh_token,
@@ -49,9 +49,9 @@ from strata_jwt_auth.utils import (
     verify_password,
 )
 
-_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/plugins/jwt_auth/login")
+_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/plugins/auth_jwt/login")
 
-plugin_router = APIRouter(prefix="/api/plugins/jwt_auth", tags=["auth"])
+plugin_router = APIRouter(prefix="/api/plugins/auth_jwt", tags=["auth"])
 
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ async def register(req: RegisterRequest, session: AsyncSessionDep) -> UserRespon
             detail=f"Username {req.username!r} is already taken.",
         )
 
-    # Create the platform identity row first; jwt_auth_users.id FKs to it.
+    # Create the platform identity row first; auth_jwt_users.id FKs to it.
     core_user = CoreUser()
     session.add(core_user)
     await session.flush()  # populate core_user.id
@@ -148,7 +148,7 @@ async def login(
         session: Injected async DB session.
 
     Returns:
-        A :class:`~strata_jwt_auth.schemas.LoginResponse` with both tokens.
+        A :class:`~strata_auth_jwt.schemas.LoginResponse` with both tokens.
 
     Raises:
         HTTPException: 401 if the username does not exist or the password is wrong.
@@ -196,7 +196,7 @@ async def refresh(req: RefreshRequest, session: AsyncSessionDep) -> LoginRespons
         session: Injected async DB session.
 
     Returns:
-        A new :class:`~strata_jwt_auth.schemas.LoginResponse` with rotated tokens.
+        A new :class:`~strata_auth_jwt.schemas.LoginResponse` with rotated tokens.
 
     Raises:
         HTTPException: 401 if the token is unknown, expired, or already revoked.
@@ -273,7 +273,7 @@ async def me(current_user: CurrentUserDep) -> UserResponse:
         current_user: Resolved from the ``Authorization: Bearer`` token.
 
     Returns:
-        A :class:`~strata_jwt_auth.schemas.UserResponse` for the caller.
+        A :class:`~strata_auth_jwt.schemas.UserResponse` for the caller.
     """
     return UserResponse(
         id=current_user.id,

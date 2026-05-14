@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column(
             "user_id",
             sa.String(36),
-            # FK to the platform identity — no dependency on jwt_auth.
+            # FK to the platform identity — no dependency on auth_jwt.
             sa.ForeignKey("core_users.id", ondelete="CASCADE"),
             nullable=False,
         ),

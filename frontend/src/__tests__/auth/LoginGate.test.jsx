@@ -52,7 +52,7 @@ describe('LoginGate', () => {
     useAuth.mockReturnValue({ user: null, loading: false });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => [{ id: 'password', name: 'Password', login_url: '/api/plugins/jwt_auth/login' }],
+      json: async () => [{ id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' }],
     });
 
     render(<LoginGate><div>{CHILD_TEXT}</div></LoginGate>);
@@ -67,7 +67,7 @@ describe('LoginGate', () => {
     });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => [{ id: 'password', name: 'Password', login_url: '/api/plugins/jwt_auth/login' }],
+      json: async () => [{ id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' }],
     });
 
     render(<LoginGate><div>{CHILD_TEXT}</div></LoginGate>);
@@ -78,7 +78,7 @@ describe('LoginGate', () => {
 // ── LoginForm ─────────────────────────────────────────────────────────────────
 
 const PROVIDERS = [
-  { id: 'password', name: 'Password Auth', login_url: '/api/plugins/jwt_auth/login' },
+  { id: 'password', name: 'Password Auth', login_url: '/api/plugins/auth_jwt/login' },
 ];
 
 describe('LoginForm', () => {
@@ -128,7 +128,7 @@ describe('LoginForm', () => {
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith(
-        '/api/plugins/jwt_auth/login',
+        '/api/plugins/auth_jwt/login',
         'alice',
         'secret123',
       );

@@ -16,7 +16,7 @@ strata/                              ← repo root (WORKDIR in Docker: /strata)
 │   │   ├── image_preview/           ← strata-image-preview
 │   │   ├── search_fulltext/         ← strata-search-fulltext
 │   │   ├── collabora/               ← strata-collabora
-│   │   └── jwt_auth/                ← strata-jwt-auth
+│   │   └── auth_jwt/                ← strata-jwt-auth
 │   └── src/strata/
 │       ├── config.py                ← Settings (pydantic-settings, STRATA_ prefix)
 │       ├── main.py                  ← FastAPI app, lifespan, /api/backends, /api/plugins
@@ -96,7 +96,7 @@ The entry point group name (`strata.plugins`) is configured by `STRATA_ENTRY_POI
 Set `STRATA_ENABLED_PLUGINS` in `.env` or the environment (comma-separated):
 
 ```bash
-STRATA_ENABLED_PLUGINS=local_storage,image_preview,jwt_auth
+STRATA_ENABLED_PLUGINS=local_storage,image_preview,auth_jwt
 ```
 
 The default (in `config.py`) enables `local_storage`, `smb_storage`, and `s3_storage`.
@@ -138,7 +138,7 @@ chains in the core — the registry's typed `add()` methods are the only dispatc
 | `strata-image-preview` | `image_preview` | `ThumbProvider` + `FileHandler` for images |
 | `strata-search-fulltext` | `search_fulltext` | `SearchProvider` — full-text indexing |
 | `strata-collabora` | `collabora` | `RouteProvider` (WOPI host) + `FileHandler` (iframe editor) |
-| `strata-jwt-auth` | `jwt_auth` | `AuthProvider` + `RouteProvider` (login/refresh endpoints) |
+| `strata-jwt-auth` | `auth_jwt` | `AuthProvider` + `RouteProvider` (login/refresh endpoints) |
 
 ## Writing a plugin
 
@@ -235,10 +235,10 @@ All settings are read from environment variables (prefix `STRATA_`) or a `.env` 
 | `STRATA_COLLABORA_SECRET` | `change-me` | WOPI shared secret |
 | `STRATA_S3_BUCKET` | `""` | S3 bucket name |
 | `STRATA_AWS_REGION` | `us-east-1` | AWS region |
-| `STRATA_JWT_SECRET` | `change-me-in-production` | JWT signing secret (`jwt_auth` plugin) |
-| `STRATA_JWT_ALGORITHM` | `HS256` | JWT signing algorithm (`jwt_auth` plugin) |
-| `STRATA_JWT_EXPIRE_MINUTES` | `15` | Access token lifetime in minutes (`jwt_auth` plugin) |
-| `STRATA_JWT_REFRESH_EXPIRE_DAYS` | `30` | Refresh token lifetime in days (`jwt_auth` plugin) |
+| `STRATA_JWT_SECRET` | `change-me-in-production` | JWT signing secret (`auth_jwt` plugin) |
+| `STRATA_JWT_ALGORITHM` | `HS256` | JWT signing algorithm (`auth_jwt` plugin) |
+| `STRATA_JWT_EXPIRE_MINUTES` | `15` | Access token lifetime in minutes (`auth_jwt` plugin) |
+| `STRATA_JWT_REFRESH_EXPIRE_DAYS` | `30` | Refresh token lifetime in days (`auth_jwt` plugin) |
 | `STRATA_ENTRY_POINT_GROUP` | `strata.plugins` | Entry point group for plugin discovery |
 
 ## Makefile targets

@@ -2,14 +2,14 @@
 
 This module defines the single platform-level user record: ``core_users``.
 It contains only the identity — a UUID and a creation timestamp.
-Auth-specific data (password hashes, tokens) lives in the ``jwt_auth``
+Auth-specific data (password hashes, tokens) lives in the ``auth_jwt``
 plugin.  Per-user storage credentials live in their respective plugins.
 
 Why here and not in a plugin
 -----------------------------
 Any plugin that stores per-user data needs a stable foreign key target that
 does not depend on which auth backend is installed.  If the FK pointed at
-``jwt_auth_users``, every storage plugin would gain an implicit dependency on
+``auth_jwt_users``, every storage plugin would gain an implicit dependency on
 the JWT auth plugin.  By placing the identity table in the core we have:
 
 - A single, stable FK target for all plugins: ``core_users.id``.

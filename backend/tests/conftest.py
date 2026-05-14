@@ -15,7 +15,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
-import strata_jwt_auth.models  # Import jwt_auth models for registration on Base # noqa: F401
+import strata_auth_jwt.models  # Import auth_jwt models for registration on Base # noqa: F401
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -35,7 +35,7 @@ from strata.plugins.registry import PluginRegistry
 
 @pytest_asyncio.fixture
 async def engine() -> AsyncGenerator[AsyncEngine]:
-    """In-memory SQLite engine with all core + jwt_auth tables."""
+    """In-memory SQLite engine with all core + auth_jwt tables."""
     eng = create_async_engine("sqlite+aiosqlite://", echo=False)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

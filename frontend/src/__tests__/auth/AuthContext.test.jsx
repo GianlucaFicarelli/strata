@@ -90,7 +90,7 @@ describe('login()', () => {
   it('sets token and user on success', async () => {
     // Initial mount: no token
     global.fetch = vi.fn()
-      // First call: POST /api/plugins/jwt_auth/login
+      // First call: POST /api/plugins/auth_jwt/login
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ access_token: 'new.jwt', token_type: 'bearer' }),
@@ -106,7 +106,7 @@ describe('login()', () => {
 
     await act(async () => {
       await result.current.login(
-        '/api/plugins/jwt_auth/login',
+        '/api/plugins/auth_jwt/login',
         'bob',
         'password123',
       );
@@ -128,7 +128,7 @@ describe('login()', () => {
 
     await expect(
       act(async () => {
-        await result.current.login('/api/plugins/jwt_auth/login', 'bad', 'bad');
+        await result.current.login('/api/plugins/auth_jwt/login', 'bad', 'bad');
       })
     ).rejects.toThrow('Incorrect username or password');
 

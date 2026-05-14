@@ -1,4 +1,4 @@
-"""Initial jwt_auth schema: users and refresh_tokens tables.
+"""Initial auth_jwt schema: users and refresh_tokens tables.
 
 Revision ID: 0001
 Revises:
@@ -12,13 +12,13 @@ from alembic import op
 
 revision: str = "0001"
 down_revision: str | None = None
-branch_labels: str | Sequence[str] | None = ("jwt_auth",)
+branch_labels: str | Sequence[str] | None = ("auth_jwt",)
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     op.create_table(
-        "jwt_auth_users",
+        "auth_jwt_users",
         sa.Column(
             "id",
             sa.String(36),
@@ -34,16 +34,16 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index("ix_jwt_auth_users_id", "jwt_auth_users", ["id"])
-    op.create_index("ix_jwt_auth_users_username", "jwt_auth_users", ["username"], unique=True)
+    op.create_index("ix_auth_jwt_users_id", "auth_jwt_users", ["id"])
+    op.create_index("ix_auth_jwt_users_username", "auth_jwt_users", ["username"], unique=True)
 
     op.create_table(
-        "jwt_auth_refresh_tokens",
+        "auth_jwt_refresh_tokens",
         sa.Column("id", sa.String(36), primary_key=True),
         sa.Column(
             "user_id",
             sa.String(36),
-            sa.ForeignKey("jwt_auth_users.id", ondelete="CASCADE"),
+            sa.ForeignKey("auth_jwt_users.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column("token_hash", sa.String(64), nullable=False),
@@ -55,18 +55,18 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "ix_jwt_auth_refresh_tokens_user_id",
-        "jwt_auth_refresh_tokens",
+        "ix_auth_jwt_refresh_tokens_user_id",
+        "auth_jwt_refresh_tokens",
         ["user_id"],
     )
     op.create_index(
-        "uq_jwt_auth_refresh_tokens_token_hash",
-        "jwt_auth_refresh_tokens",
+        "uq_auth_jwt_refresh_tokens_token_hash",
+        "auth_jwt_refresh_tokens",
         ["token_hash"],
         unique=True,
     )
 
 
 def downgrade() -> None:
-    op.drop_table("jwt_auth_refresh_tokens")
-    op.drop_table("jwt_auth_users")
+    op.drop_table("auth_jwt_refresh_tokens")
+    op.drop_table("auth_jwt_users")

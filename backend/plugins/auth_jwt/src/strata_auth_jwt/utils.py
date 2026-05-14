@@ -1,15 +1,15 @@
-"""JWT and password utilities for the jwt_auth plugin.
+"""JWT and password utilities for the auth_jwt plugin.
 
 Responsibilities
 ----------------
 - Sign and decode short-lived **access tokens** (PyJWT / HS256).
 - Issue, hash, and verify long-lived **refresh tokens** (random bytes, SHA-256).
 - Hash and verify **passwords** (Argon2id via pwdlib).
-- Convert a DB :class:`~strata_jwt_auth.models.User` to a protocol
+- Convert a DB :class:`~strata_auth_jwt.models.User` to a protocol
   :class:`~strata.plugins.protocols.AuthUser`.
 
 Nothing in this module touches the database directly; all DB work happens in
-:mod:`strata_jwt_auth.router`.
+:mod:`strata_auth_jwt.router`.
 """
 
 import hashlib
@@ -22,8 +22,8 @@ from fastapi import HTTPException, status
 from pwdlib import PasswordHash
 
 from strata.schemas.auth import AuthUser
-from strata_jwt_auth.config import settings
-from strata_jwt_auth.models import User
+from strata_auth_jwt.config import settings
+from strata_auth_jwt.models import User
 
 _password_hash = PasswordHash.recommended()
 
@@ -66,7 +66,7 @@ def create_access_token(user: User) -> str:
     ``exp`` (expiry).  No sensitive data is stored in the payload.
 
     Args:
-        user: The authenticated :class:`~strata_jwt_auth.models.User` row.
+        user: The authenticated :class:`~strata_auth_jwt.models.User` row.
 
     Returns:
         A compact, URL-safe JWT string.
@@ -137,7 +137,7 @@ def auth_user_from_token(token: str) -> AuthUser:
 
 
 def user_to_auth_user(user: User) -> AuthUser:
-    """Convert a DB :class:`~strata_jwt_auth.models.User` to an :class:`~strata.plugins.protocols.AuthUser`.
+    """Convert a DB :class:`~strata_auth_jwt.models.User` to an :class:`~strata.plugins.protocols.AuthUser`.
 
     Args:
         user: ORM user row.
@@ -171,7 +171,7 @@ def hash_refresh_token(raw: str) -> str:
         raw: The plain-text refresh token as returned by :func:`generate_refresh_token`.
 
     Returns:
-        64-character hex string stored in ``jwt_auth_refresh_tokens.token_hash``.
+        64-character hex string stored in ``auth_jwt_refresh_tokens.token_hash``.
     """
     return hashlib.sha256(raw.encode()).hexdigest()
 

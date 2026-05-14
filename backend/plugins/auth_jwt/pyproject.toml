@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.entry-points."strata.plugins"]
-jwt_auth = "strata_jwt_auth:plugin"
+auth_jwt = "strata_auth_jwt:plugin"
 
 [tool.uv.sources]
 strata = { workspace = true }

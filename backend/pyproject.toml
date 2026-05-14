@@ -90,7 +90,7 @@ extraPaths = [
     "src/",
     "plugins/collabora/src/",
     "plugins/image_preview/src/",
-    "plugins/jwt_auth/src/",
+    "plugins/auth_jwt/src/",
     "plugins/local_storage/src/",
     "plugins/s3_storage/src/",
     "plugins/search_fulltext/src/",
@@ -111,7 +111,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = [
     "src",
-    "plugins/jwt_auth/src",
+    "plugins/auth_jwt/src",
     "plugins/local_storage/src",
     "plugins/smb_storage/src",
     "plugins/s3_storage/src",
@@ -127,7 +127,7 @@ source_pkgs = [
     "strata",
     "strata_collabora",
     "strata_image_preview",
-    "strata_jwt_auth",
+    "strata_auth_jwt",
     "strata_local_storage",
     "strata_s3_storage",
     "strata_search_fulltext",

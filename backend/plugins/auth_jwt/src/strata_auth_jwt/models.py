@@ -2,19 +2,19 @@
 
 Tables
 ------
-``jwt_auth_users``
+``auth_jwt_users``
     Auth-specific extension of the platform identity.  The ``id`` column is
     both PK and FK to ``core_users.id`` (one-to-one, CASCADE delete).
     Deleting the core user row removes the JWT auth row automatically.
 
-``jwt_auth_refresh_tokens``
-    Server-side refresh token store.  FKs to ``jwt_auth_users.id``.
+``auth_jwt_refresh_tokens``
+    Server-side refresh token store.  FKs to ``auth_jwt_users.id``.
 
 Why FK to ``core_users`` and not a standalone PK
 ----------------------------------------------------
 Storage plugins (SMB, S3, …) need to store per-user credentials and must
 FK to a user table that does not depend on any specific auth backend.
-``core_users`` is that stable target.  ``jwt_auth_users`` is a pure
+``core_users`` is that stable target.  ``auth_jwt_users`` is a pure
 extension of it — same UUID, extra auth columns.
 """
 
@@ -42,7 +42,7 @@ class User(Base):
         refresh_tokens: All active refresh tokens for this user.
     """
 
-    __tablename__ = "jwt_auth_users"
+    __tablename__ = "auth_jwt_users"
 
     id: Mapped[str] = mapped_column(
         String(36),
@@ -68,19 +68,19 @@ class RefreshToken(Base):
 
     Attributes:
         id: UUID primary key.
-        user_id: FK → ``jwt_auth_users.id`` ON DELETE CASCADE.
+        user_id: FK → ``auth_jwt_users.id`` ON DELETE CASCADE.
         token_hash: SHA-256 hex digest of the raw opaque token.
         expires_at: UTC expiry timestamp.
         created_at: UTC issuance timestamp.
         user: Back-reference to the owning :class:`User`.
     """
 
-    __tablename__ = "jwt_auth_refresh_tokens"
+    __tablename__ = "auth_jwt_refresh_tokens"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid)
     user_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("jwt_auth_users.id", ondelete="CASCADE"),
+        ForeignKey("auth_jwt_users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

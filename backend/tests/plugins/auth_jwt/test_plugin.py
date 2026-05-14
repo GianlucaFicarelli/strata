@@ -7,10 +7,10 @@ directly.
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from strata_jwt_auth.models import User
-from strata_jwt_auth.plugin import JwtAuthPlugin
-from strata_jwt_auth.providers import JwtAuthDbContributor, PasswordAuthProvider
-from strata_jwt_auth.utils import hash_password
+from strata_auth_jwt.models import User
+from strata_auth_jwt.plugin import JwtAuthPlugin
+from strata_auth_jwt.providers import JwtAuthDbContributor, PasswordAuthProvider
+from strata_auth_jwt.utils import hash_password
 
 from strata.db.models import CoreUser
 from strata.db.session import session_scope
@@ -51,7 +51,7 @@ def test_plugin_describe():
     plugin = JwtAuthPlugin()
     desc = plugin.describe()
     assert isinstance(desc, PluginMeta)
-    assert desc.id == "jwt_auth"
+    assert desc.id == "auth_jwt"
 
 
 def test_plugin_migrations_dir_exists():

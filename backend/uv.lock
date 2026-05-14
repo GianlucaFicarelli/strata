@@ -929,7 +929,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "strata-collabora", marker = "extra == 'all'", editable = "plugins/collabora" },
     { name = "strata-image-preview", marker = "extra == 'all'", editable = "plugins/image_preview" },
-    { name = "strata-jwt-auth", marker = "extra == 'all'", editable = "plugins/jwt_auth" },
+    { name = "strata-jwt-auth", marker = "extra == 'all'", editable = "plugins/auth_jwt" },
     { name = "strata-local-storage", marker = "extra == 'all'", editable = "plugins/local_storage" },
     { name = "strata-s3-storage", marker = "extra == 'all'", editable = "plugins/s3_storage" },
     { name = "strata-search-fulltext", marker = "extra == 'all'", editable = "plugins/search_fulltext" },
@@ -986,7 +986,7 @@ requires-dist = [
 [[package]]
 name = "strata-jwt-auth"
 version = "0.1.0"
-source = { editable = "plugins/jwt_auth" }
+source = { editable = "plugins/auth_jwt" }
 dependencies = [
     { name = "fastapi" },
     { name = "pwdlib", extra = ["argon2"] },

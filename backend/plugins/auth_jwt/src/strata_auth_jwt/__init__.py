@@ -3,7 +3,7 @@
 Contributes:
 
 - :class:`~strata.plugins.protocols.DbContributor`: declares the
-  ``jwt_auth_users`` and ``jwt_auth_refresh_tokens`` tables and the Alembic
+  ``auth_jwt_users`` and ``auth_jwt_refresh_tokens`` tables and the Alembic
   migrations directory so the shared engine automatically runs
   ``upgrade head`` at startup.
 - :class:`~strata.plugins.protocols.AuthProvider`: validates
@@ -11,16 +11,16 @@ Contributes:
   :class:`~strata.plugins.protocols.AuthUser`.
 - :class:`~strata.plugins.protocols.RouteProvider`: exposes:
 
-  - ``POST /api/plugins/jwt_auth/register``
-  - ``POST /api/plugins/jwt_auth/login``
-  - ``POST /api/plugins/jwt_auth/refresh``
-  - ``POST /api/plugins/jwt_auth/logout``
-  - ``GET  /api/plugins/jwt_auth/me``
+  - ``POST /api/plugins/auth_jwt/register``
+  - ``POST /api/plugins/auth_jwt/login``
+  - ``POST /api/plugins/auth_jwt/refresh``
+  - ``POST /api/plugins/auth_jwt/logout``
+  - ``GET  /api/plugins/auth_jwt/me``
 
 Entry point::
 
     [project.entry-points."strata.plugins"]
-    jwt_auth = "strata_jwt_auth:plugin"
+    auth_jwt = "strata_auth_jwt:plugin"
 
 Configuration (all optional — set in ``.env`` or environment):
 
@@ -37,6 +37,6 @@ Security:
     stored as SHA-256 hashes; they are rotated on every use.
 """
 
-from strata_jwt_auth.plugin import plugin
+from strata_auth_jwt.plugin import plugin
 
 __all__ = ["plugin"]

@@ -10,26 +10,26 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from strata.plugins.protocols import DbContributor
 from strata.schemas.auth import AuthUser
-from strata_jwt_auth.models import Base
-from strata_jwt_auth.router import plugin_router
-from strata_jwt_auth.utils import User, auth_user_from_token, user_to_auth_user, verify_password
+from strata_auth_jwt.models import Base
+from strata_auth_jwt.router import plugin_router
+from strata_auth_jwt.utils import User, auth_user_from_token, user_to_auth_user, verify_password
 
 
 class JwtAuthDbContributor(DbContributor):
-    """Registers the jwt_auth ORM metadata and Alembic migrations directory.
+    """Registers the auth_jwt ORM metadata and Alembic migrations directory.
 
     The :class:`~strata.plugins.registry.DbRegistry` picks this up during
     startup and runs Alembic ``upgrade head`` before the first request.
 
     Attributes:
         metadata: SQLAlchemy :class:`~sqlalchemy.MetaData` for the
-            ``jwt_auth_users`` and ``jwt_auth_refresh_tokens`` tables.
+            ``auth_jwt_users`` and ``auth_jwt_refresh_tokens`` tables.
         migrations_dir: Absolute path to the ``migrations/`` directory
             shipped inside this package, resolved via ``importlib.resources``.
     """
 
     metadata: MetaData = Base.metadata
-    migrations_dir: Path = Path(str(files("strata_jwt_auth").joinpath("migrations")))
+    migrations_dir: Path = Path(str(files("strata_auth_jwt").joinpath("migrations")))
 
 
 class PasswordAuthProvider:
@@ -88,7 +88,7 @@ class PasswordAuthProvider:
         if self._session_factory is None:
             raise RuntimeError(
                 "PasswordAuthProvider has no session factory. "
-                "Ensure jwt_auth on_startup() has been called."
+                "Ensure auth_jwt on_startup() has been called."
             )
 
         async with self._session_factory() as session:
@@ -136,7 +136,7 @@ class PasswordAuthProvider:
         return {
             "id": self.id,
             "name": self.name,
-            "login_url": "/api/plugins/jwt_auth/login",
+            "login_url": "/api/plugins/auth_jwt/login",
         }
 
 

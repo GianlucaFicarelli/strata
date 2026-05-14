@@ -18,13 +18,13 @@ Design constraints
 Typical ``env.py`` for a plugin::
 
     # strata_myplugin/migrations/env.py
-    from strata_jwt_auth.models import Base
+    from strata_auth_jwt.models import Base
 
     from strata.db.utils import MigrationEnv, version_table_name
 
     env = MigrationEnv(
         target_metadata=Base.metadata,
-        version_table=version_table_name("jwt_auth"),
+        version_table=version_table_name("auth_jwt"),
     )
     env.run()
 """

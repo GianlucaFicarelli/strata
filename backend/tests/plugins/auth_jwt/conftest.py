@@ -1,7 +1,7 @@
 import pytest
-from strata_jwt_auth.config import settings
+from strata_auth_jwt.config import settings
 
-from tests.plugins.jwt_auth.utils import (
+from tests.plugins.auth_jwt.utils import (
     JWT_ALGORITHM,
     JWT_EXPIRE_MINUTES,
     JWT_REFRESH_EXPIRE_DAYS,

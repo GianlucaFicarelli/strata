@@ -21,7 +21,7 @@ STRATA_JWT_EXPIRE_MINUTES
 
 STRATA_JWT_REFRESH_EXPIRE_DAYS
     Lifetime of a refresh token in days.  Refresh tokens are stored server-side
-    (``jwt_auth_refresh_tokens`` table) and can be revoked immediately.
+    (``auth_jwt_refresh_tokens`` table) and can be revoked immediately.
 
 Note: the database URL is **not** configured here.  The plugin uses the
 shared ``STRATA_DB_URL`` from the core :mod:`strata.config` settings.
