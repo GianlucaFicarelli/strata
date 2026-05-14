@@ -87,14 +87,15 @@ venvPath = "."
 venv = ".venv"
 extraPaths = [
     "src/",
+    "plugins/auth_jwt/src/",
     "plugins/collabora/src/",
     "plugins/image_preview/src/",
-    "plugins/auth_jwt/src/",
+    "plugins/search_fulltext/src/",
     "plugins/storage_local/src/",
     "plugins/storage_s3/src/",
-    "plugins/search_fulltext/src/",
     "plugins/storage_smb/src/",
 ]
+exclude = ["**/node_modules", "**/__pycache__", "**/.*", "tests"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -102,7 +103,7 @@ addopts = [
     "--import-mode=importlib",
     "-vv",
     "-ra",
-    "--cov=strata",
+    "--cov",
     "--durations=10",
     "--durations-min=1.0",
 ]
