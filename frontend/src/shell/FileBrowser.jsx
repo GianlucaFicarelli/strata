@@ -32,7 +32,7 @@ function pathParts(path) {
 
 export default function FileBrowser() {
   const [backends, setBackends] = useState([]);
-  const [activeBackend, setActiveBackend] = useState('local_storage');
+  const [activeBackend, setActiveBackend] = useState('storage_local');
   const [cwd, setCwd] = useState('/');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -47,7 +47,7 @@ export default function FileBrowser() {
   useEffect(() => {
     listBackends()
       .then(setBackends)
-      .catch(() => setBackends([{ id: 'local_storage', name: 'Local Filesystem' }]));
+      .catch(() => setBackends([{ id: 'storage_local', name: 'Local Filesystem' }]));
   }, []);
 
   // Reset path when switching backends

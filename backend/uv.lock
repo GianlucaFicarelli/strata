@@ -8,7 +8,7 @@ members = [
     "strata-collabora",
     "strata-image-preview",
     "strata-jwt-auth",
-    "strata-local-storage",
+    "strata-storage-local",
     "strata-s3-storage",
     "strata-search-fulltext",
     "strata-smb-storage",
@@ -899,7 +899,7 @@ all = [
     { name = "strata-collabora" },
     { name = "strata-image-preview" },
     { name = "strata-jwt-auth" },
-    { name = "strata-local-storage" },
+    { name = "strata-storage-local" },
     { name = "strata-s3-storage" },
     { name = "strata-search-fulltext" },
     { name = "strata-smb-storage" },
@@ -930,7 +930,7 @@ requires-dist = [
     { name = "strata-collabora", marker = "extra == 'all'", editable = "plugins/collabora" },
     { name = "strata-image-preview", marker = "extra == 'all'", editable = "plugins/image_preview" },
     { name = "strata-jwt-auth", marker = "extra == 'all'", editable = "plugins/auth_jwt" },
-    { name = "strata-local-storage", marker = "extra == 'all'", editable = "plugins/local_storage" },
+    { name = "strata-storage-local", marker = "extra == 'all'", editable = "plugins/storage_local" },
     { name = "strata-s3-storage", marker = "extra == 'all'", editable = "plugins/s3_storage" },
     { name = "strata-search-fulltext", marker = "extra == 'all'", editable = "plugins/search_fulltext" },
     { name = "strata-smb-storage", marker = "extra == 'all'", editable = "plugins/smb_storage" },
@@ -1009,9 +1009,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "strata-local-storage"
+name = "strata-storage-local"
 version = "0.1.0"
-source = { editable = "plugins/local_storage" }
+source = { editable = "plugins/storage_local" }
 dependencies = [
     { name = "aiofiles" },
     { name = "strata" },

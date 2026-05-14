@@ -122,7 +122,7 @@ _router = APIRouter(prefix="/api/plugins/collabora", tags=["collabora"])
 @_router.get("/editor-url")
 async def editor_url(
     path: str = Query(..., description="Backend-relative path of the file to open"),
-    backend: str = Query(default="local_storage", description="Storage backend ID"),
+    backend: str = Query(default="storage_local", description="Storage backend ID"),
 ) -> dict[str, str]:
     """Return the Collabora iframe URL for the given file.
 

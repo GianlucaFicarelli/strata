@@ -14,7 +14,7 @@ Configuration:
     STRATA_SEARCH_INDEX_DIR: Directory where the Whoosh index is stored.
         Defaults to ``~/.strata/search_index``.
     STRATA_SEARCH_BACKEND_ID: ID of the storage backend to index.
-        Defaults to ``"local_storage"``.
+        Defaults to ``"storage_local"``.
 
 Note:
     This is a stub implementation.  The Whoosh index calls are marked with
@@ -38,7 +38,7 @@ from strata.schemas.search import SearchResult
 _INDEX_DIR: Path = Path(
     os.environ.get("STRATA_SEARCH_INDEX_DIR", Path.home() / ".strata" / "search_index")
 )
-_BACKEND_ID: str = os.environ.get("STRATA_SEARCH_BACKEND_ID", "local_storage")
+_BACKEND_ID: str = os.environ.get("STRATA_SEARCH_BACKEND_ID", "storage_local")
 
 # ── API routes ────────────────────────────────────────────────────────────────
 

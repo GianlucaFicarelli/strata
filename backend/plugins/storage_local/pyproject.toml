@@ -1,5 +1,5 @@
 [project]
-name = "strata-local-storage"
+name = "strata-storage-local"
 version = "0.1.0"
 description = "Local filesystem storage backend for Strata."
 requires-python = ">=3.14"
@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.entry-points."strata.plugins"]
-local_storage = "strata_local_storage:plugin"
+storage_local = "strata_storage_local:plugin"
 
 [tool.uv.sources]
 strata = { workspace = true }

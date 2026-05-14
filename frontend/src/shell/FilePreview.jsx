@@ -33,7 +33,7 @@ function DefaultPreviewer({ file, backend }) {
   );
 }
 
-export default function FilePreview({ file, backend = 'local_storage', onClose }) {
+export default function FilePreview({ file, backend = 'storage_local', onClose }) {
   const pluginPreviewer = usePreviewer(file);
   if (!file) return null;
 

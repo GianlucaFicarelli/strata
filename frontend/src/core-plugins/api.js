@@ -35,7 +35,7 @@ export async function listBackends() {
   return res.json();
 }
 
-export async function listDir(path = '/', backend = 'local_storage') {
+export async function listDir(path = '/', backend = 'storage_local') {
   const res = await fetch(`${BASE}/list${qs({ path, backend })}`, {
     headers: authHeaders(),
   });
@@ -43,7 +43,7 @@ export async function listDir(path = '/', backend = 'local_storage') {
   return res.json();
 }
 
-export async function deleteEntry(path, backend = 'local_storage') {
+export async function deleteEntry(path, backend = 'storage_local') {
   const res = await fetch(`${BASE}/delete${qs({ path, backend })}`, {
     method: 'DELETE',
     headers: authHeaders(),
@@ -52,7 +52,7 @@ export async function deleteEntry(path, backend = 'local_storage') {
   return res.json();
 }
 
-export async function makeDir(path, backend = 'local_storage') {
+export async function makeDir(path, backend = 'storage_local') {
   const res = await fetch(`${BASE}/mkdir${qs({ path, backend })}`, {
     method: 'POST',
     headers: authHeaders(),
@@ -61,7 +61,7 @@ export async function makeDir(path, backend = 'local_storage') {
   return res.json();
 }
 
-export async function moveEntry(src, dst, backend = 'local_storage') {
+export async function moveEntry(src, dst, backend = 'storage_local') {
   const res = await fetch(`${BASE}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -71,7 +71,7 @@ export async function moveEntry(src, dst, backend = 'local_storage') {
   return res.json();
 }
 
-export function downloadUrl(path, backend = 'local_storage') {
+export function downloadUrl(path, backend = 'storage_local') {
   // Download URLs include the token as a query param since we can't set
   // headers on window.open() / anchor clicks.
   const token = getToken();
@@ -80,7 +80,7 @@ export function downloadUrl(path, backend = 'local_storage') {
   return `${BASE}/download${qs(params)}`;
 }
 
-export async function uploadFile(path, file, backend = 'local_storage') {
+export async function uploadFile(path, file, backend = 'storage_local') {
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${BASE}/upload${qs({ path, backend })}`, {

@@ -35,7 +35,7 @@ import FileBrowser from '../FileBrowser';
 import { listBackends, listDir } from '../../core-plugins/api';
 
 const BACKENDS = [
-  { id: 'local_storage', name: 'Local Filesystem' },
+  { id: 'storage_local', name: 'Local Filesystem' },
   { id: 's3', name: 'S3 Storage' },
 ];
 

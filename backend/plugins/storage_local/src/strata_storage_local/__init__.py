@@ -9,7 +9,7 @@ All path traversal outside the configured root is rejected with HTTP 403.
 Entry point::
 
     [project.entry-points."strata.plugins"]
-    local_storage = "strata_local_storage:plugin"
+    storage_local = "strata_storage_local:plugin"
 
 Configuration:
     STRATA_LOCAL_ROOT: Absolute path to the directory exposed as the
@@ -81,11 +81,11 @@ class LocalStorageBackend:
     Implements the :class:`~strata.plugins.protocols.StorageBackend` protocol.
 
     Attributes:
-        id: ``"local_storage"``
+        id: ``"storage_local"``
         name: ``"Local Filesystem"``
     """
 
-    id: str = "local_storage"
+    id: str = "storage_local"
     name: str = "Local Filesystem"
 
     async def list(self, path: str) -> list[FileEntry]:
@@ -204,7 +204,7 @@ class LocalStoragePlugin(BackendPlugin):
     - ``registry.storage``: :class:`LocalStorageBackend`
     """
 
-    id = "local_storage"
+    id = "storage_local"
     name = "Local Storage"
     version = "0.1.0"
     description = "Exposes the local filesystem as a storage backend."

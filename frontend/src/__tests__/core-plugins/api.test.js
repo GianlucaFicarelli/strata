@@ -26,7 +26,7 @@ function mockFetch(json, ok = true, status = 200) {
 
 describe('listBackends', () => {
   it('calls /api/backends and returns json', async () => {
-    const backends = [{ id: 'local_storage', name: 'Local' }];
+    const backends = [{ id: 'storage_local', name: 'Local' }];
     global.fetch = mockFetch(backends);
 
     const result = await listBackends();
@@ -43,26 +43,26 @@ describe('listBackends', () => {
 describe('listDir', () => {
   it('calls /api/files/list with correct query params', async () => {
     global.fetch = mockFetch([]);
-    await listDir('/photos', 'local_storage');
+    await listDir('/photos', 'storage_local');
     const url = global.fetch.mock.calls[0][0];
     expect(url).toContain('/api/files/list');
     expect(url).toContain('path=%2Fphotos');
-    expect(url).toContain('backend=local_storage');
+    expect(url).toContain('backend=storage_local');
   });
 
-  it('uses "/" and "local_storage" as defaults', async () => {
+  it('uses "/" and "storage_local" as defaults', async () => {
     global.fetch = mockFetch([]);
     await listDir();
     const url = global.fetch.mock.calls[0][0];
     expect(url).toContain('path=%2F');
-    expect(url).toContain('backend=local_storage');
+    expect(url).toContain('backend=storage_local');
   });
 });
 
 describe('deleteEntry', () => {
   it('sends DELETE request with correct params', async () => {
     global.fetch = mockFetch({ status: 'ok' });
-    await deleteEntry('/old.txt', 'local_storage');
+    await deleteEntry('/old.txt', 'storage_local');
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/delete');
     expect(opts.method).toBe('DELETE');
@@ -72,7 +72,7 @@ describe('deleteEntry', () => {
 describe('makeDir', () => {
   it('sends POST to mkdir with path and backend', async () => {
     global.fetch = mockFetch({ status: 'ok' });
-    await makeDir('/new-folder', 'local_storage');
+    await makeDir('/new-folder', 'storage_local');
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/mkdir');
     expect(opts.method).toBe('POST');
@@ -83,21 +83,21 @@ describe('makeDir', () => {
 describe('moveEntry', () => {
   it('sends POST with JSON body', async () => {
     global.fetch = mockFetch({ status: 'ok' });
-    await moveEntry('/a.txt', '/b.txt', 'local_storage');
+    await moveEntry('/a.txt', '/b.txt', 'storage_local');
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/move');
     expect(opts.method).toBe('POST');
     const body = JSON.parse(opts.body);
-    expect(body).toEqual({ src: '/a.txt', dst: '/b.txt', backend: 'local_storage' });
+    expect(body).toEqual({ src: '/a.txt', dst: '/b.txt', backend: 'storage_local' });
   });
 });
 
 describe('downloadUrl', () => {
   it('returns a URL without fetching', () => {
-    const url = downloadUrl('/file.pdf', 'local_storage');
+    const url = downloadUrl('/file.pdf', 'storage_local');
     expect(url).toContain('/api/files/download');
     expect(url).toContain('file.pdf');
-    expect(url).toContain('backend=local_storage');
+    expect(url).toContain('backend=storage_local');
     expect(global.fetch).not.toHaveBeenCalled?.();
   });
 });
@@ -107,7 +107,7 @@ describe('uploadFile', () => {
     global.fetch = mockFetch({ status: 'ok', path: '/photo.jpg' });
     const fakeFile = new Blob(['data'], { type: 'image/jpeg' });
     fakeFile.name = 'photo.jpg';
-    await uploadFile('/uploads', fakeFile, 'local_storage');
+    await uploadFile('/uploads', fakeFile, 'storage_local');
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/upload');
     expect(opts.method).toBe('POST');

@@ -10,7 +10,7 @@ strata/                              ← repo root (WORKDIR in Docker: /strata)
 │   ├── pyproject.toml               ← core package + uv workspace root
 │   ├── uv.lock                      ← committed; used for reproducible installs
 │   ├── plugins/                     ← installable plugin packages (workspace members)
-│   │   ├── local_storage/           ← strata-local-storage
+│   │   ├── storage_local/           ← strata-storage-local
 │   │   ├── s3_storage/              ← strata-s3-storage
 │   │   ├── smb_storage/             ← strata-smb-storage
 │   │   ├── image_preview/           ← strata-image-preview
@@ -86,7 +86,7 @@ Each plugin declares itself in its `pyproject.toml`:
 
 ```toml
 [project.entry-points."strata.plugins"]
-local_storage = "strata_local_storage:plugin"
+storage_local = "strata_storage_local:plugin"
 ```
 
 The entry point group name (`strata.plugins`) is configured by `STRATA_ENTRY_POINT_GROUP`.
@@ -96,10 +96,10 @@ The entry point group name (`strata.plugins`) is configured by `STRATA_ENTRY_POI
 Set `STRATA_ENABLED_PLUGINS` in `.env` or the environment (comma-separated):
 
 ```bash
-STRATA_ENABLED_PLUGINS=local_storage,image_preview,auth_jwt
+STRATA_ENABLED_PLUGINS=storage_local,image_preview,auth_jwt
 ```
 
-The default (in `config.py`) enables `local_storage`, `smb_storage`, and `s3_storage`.
+The default (in `config.py`) enables `storage_local`, `smb_storage`, and `s3_storage`.
 Only plugins whose entry point name appears in this list are loaded.
 
 ### Lifecycle
@@ -132,7 +132,7 @@ chains in the core — the registry's typed `add()` methods are the only dispatc
 
 | Package | Entry point | Provides |
 |---|---|---|
-| `strata-local-storage` | `local_storage` | `StorageBackend` — local filesystem |
+| `strata-storage-local` | `storage_local` | `StorageBackend` — local filesystem |
 | `strata-s3-storage` | `s3_storage` | `StorageBackend` — S3-compatible stores |
 | `strata-smb-storage` | `smb_storage` | `StorageBackend` — SMB/CIFS shares |
 | `strata-image-preview` | `image_preview` | `ThumbProvider` + `FileHandler` for images |
@@ -201,7 +201,7 @@ cd backend && uv sync --extra all
 
 ```bash
 # .env
-STRATA_ENABLED_PLUGINS=local_storage,myplugin
+STRATA_ENABLED_PLUGINS=storage_local,myplugin
 ```
 
 ## Storage backend request pattern
@@ -210,12 +210,12 @@ All file routes live under `/api/files/*`. The backend is selected per-request v
 `?backend=<id>`.
 
 ```
-GET    /api/files/list?backend=local_storage&path=/docs
+GET    /api/files/list?backend=storage_local&path=/docs
 GET    /api/files/download?backend=s3_storage&path=/report.pdf
-POST   /api/files/upload?backend=local_storage&path=/uploads
-DELETE /api/files/delete?backend=local_storage&path=/tmp/old.txt
-POST   /api/files/mkdir?backend=local_storage&path=/new-dir
-POST   /api/files/move   body: {"src": "/a", "dst": "/b", "backend": "local_storage"}
+POST   /api/files/upload?backend=storage_local&path=/uploads
+DELETE /api/files/delete?backend=storage_local&path=/tmp/old.txt
+POST   /api/files/mkdir?backend=storage_local&path=/new-dir
+POST   /api/files/move   body: {"src": "/a", "dst": "/b", "backend": "storage_local"}
 ```
 
 `GET /api/backends` returns metadata for all registered backends. The frontend uses this
@@ -230,7 +230,7 @@ All settings are read from environment variables (prefix `STRATA_`) or a `.env` 
 | `STRATA_ENABLED_PLUGINS` | see `config.py` | Comma-separated plugin entry point names to load |
 | `STRATA_DB_URL` | `sqlite+aiosqlite:///$HOME/.strata/strata.db` | Shared async database URL (use `postgresql+asyncpg://…` in production) |
 | `STRATA_DB_ECHO` | `false` | Log all SQL statements when `true` |
-| `STRATA_LOCAL_ROOT` | `$HOME` | Root directory for `local_storage` |
+| `STRATA_LOCAL_ROOT` | `$HOME` | Root directory for `storage_local` |
 | `STRATA_COLLABORA_URL` | `http://collabora:9980` | Collabora Online base URL |
 | `STRATA_COLLABORA_SECRET` | `change-me` | WOPI shared secret |
 | `STRATA_S3_BUCKET` | `""` | S3 bucket name |

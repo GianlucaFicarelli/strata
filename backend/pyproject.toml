@@ -21,7 +21,7 @@ all = [
     "strata-collabora",
     "strata-image-preview",
     "strata-jwt-auth",
-    "strata-local-storage",
+    "strata-storage-local",
     "strata-s3-storage",
     "strata-search-fulltext",
     "strata-smb-storage",
@@ -47,7 +47,7 @@ required-version = ">=0.9.0"
 
 [tool.uv.sources]
 strata-image-preview = { workspace = true }
-strata-local-storage = { workspace = true }
+strata-storage-local = { workspace = true }
 strata-smb-storage = { workspace = true }
 strata-s3-storage = { workspace = true }
 strata-collabora = { workspace = true }
@@ -91,7 +91,7 @@ extraPaths = [
     "plugins/collabora/src/",
     "plugins/image_preview/src/",
     "plugins/auth_jwt/src/",
-    "plugins/local_storage/src/",
+    "plugins/storage_local/src/",
     "plugins/s3_storage/src/",
     "plugins/search_fulltext/src/",
     "plugins/smb_storage/src/",
@@ -112,7 +112,7 @@ testpaths = ["tests"]
 pythonpath = [
     "src",
     "plugins/auth_jwt/src",
-    "plugins/local_storage/src",
+    "plugins/storage_local/src",
     "plugins/smb_storage/src",
     "plugins/s3_storage/src",
     "plugins/image_preview/src",
@@ -128,7 +128,7 @@ source_pkgs = [
     "strata_collabora",
     "strata_image_preview",
     "strata_auth_jwt",
-    "strata_local_storage",
+    "strata_storage_local",
     "strata_s3_storage",
     "strata_search_fulltext",
     "strata_smb_storage",
