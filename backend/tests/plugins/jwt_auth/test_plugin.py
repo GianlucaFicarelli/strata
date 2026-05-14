@@ -7,7 +7,6 @@ directly.
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from strata_jwt_auth.config import settings as jwt_settings
 from strata_jwt_auth.models import User
 from strata_jwt_auth.plugin import JwtAuthPlugin
 from strata_jwt_auth.providers import JwtAuthDbContributor, PasswordAuthProvider
@@ -84,15 +83,7 @@ async def test_password_auth_provider_returns_none_without_username(
 
 async def test_password_auth_provider_raises_401_for_wrong_credentials(
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch,
 ):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
-    # Register a user first via the DB
-
     async with session_scope(session_factory) as session:
         core = CoreUser()
         session.add(core)

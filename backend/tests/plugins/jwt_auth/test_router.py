@@ -12,7 +12,6 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from strata_jwt_auth.config import settings as jwt_settings
 from strata_jwt_auth.router import plugin_router
 
 from strata.db.session import session_scope
@@ -63,12 +62,7 @@ async def _login(client: AsyncClient, username: str = "alice", password: str = "
 # ── Register ──────────────────────────────────────────────────────────────────
 
 
-async def test_register_creates_user(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "test-secret", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_register_creates_user(http: AsyncClient):
     async with http as client:
         resp = await _register(client)
     assert resp.status_code == 201
@@ -78,12 +72,7 @@ async def test_register_creates_user(http: AsyncClient, monkeypatch):
     assert "hashed_password" not in body
 
 
-async def test_register_duplicate_username_returns_409(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_register_duplicate_username_returns_409(http: AsyncClient):
     async with http as client:
         await _register(client)
         resp = await _register(client)
@@ -102,12 +91,7 @@ async def test_register_short_password_returns_422(http: AsyncClient):
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 
-async def test_login_returns_tokens(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_login_returns_tokens(http: AsyncClient):
     async with http as client:
         await _register(client)
         resp = await _login(client)
@@ -118,24 +102,14 @@ async def test_login_returns_tokens(http: AsyncClient, monkeypatch):
     assert body["token_type"] == "bearer"
 
 
-async def test_login_wrong_password_returns_401(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_login_wrong_password_returns_401(http: AsyncClient):
     async with http as client:
         await _register(client)
         resp = await _login(client, password="wrong_password")
     assert resp.status_code == 401
 
 
-async def test_login_unknown_user_returns_401(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_login_unknown_user_returns_401(http: AsyncClient):
     async with http as client:
         resp = await _login(client, username="nobody")
     assert resp.status_code == 401
@@ -144,12 +118,7 @@ async def test_login_unknown_user_returns_401(http: AsyncClient, monkeypatch):
 # ── /me ───────────────────────────────────────────────────────────────────────
 
 
-async def test_me_returns_current_user(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_me_returns_current_user(http: AsyncClient):
     async with http as client:
         await _register(client)
         login_resp = await _login(client)
@@ -172,12 +141,7 @@ async def test_me_without_token_returns_401(http: AsyncClient):
 # ── Refresh ───────────────────────────────────────────────────────────────────
 
 
-async def test_refresh_returns_new_tokens(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_refresh_returns_new_tokens(http: AsyncClient):
     async with http as client:
         await _register(client)
         login = await _login(client)
@@ -194,13 +158,8 @@ async def test_refresh_returns_new_tokens(http: AsyncClient, monkeypatch):
     assert "refresh_token" in new_tokens
 
 
-async def test_refresh_token_can_only_be_used_once(http: AsyncClient, monkeypatch):
+async def test_refresh_token_can_only_be_used_once(http: AsyncClient):
     """Refresh token rotation: reusing the same token must fail."""
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
     async with http as client:
         await _register(client)
         login = await _login(client)
@@ -221,12 +180,7 @@ async def test_refresh_token_can_only_be_used_once(http: AsyncClient, monkeypatc
         assert r2.status_code == 401
 
 
-async def test_refresh_with_invalid_token_returns_401(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_refresh_with_invalid_token_returns_401(http: AsyncClient):
     async with http as client:
         resp = await client.post(
             "/api/plugins/jwt_auth/refresh",
@@ -238,12 +192,7 @@ async def test_refresh_with_invalid_token_returns_401(http: AsyncClient, monkeyp
 # ── Logout ────────────────────────────────────────────────────────────────────
 
 
-async def test_logout_revokes_refresh_token(http: AsyncClient, monkeypatch):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
+async def test_logout_revokes_refresh_token(http: AsyncClient):
     async with http as client:
         await _register(client)
         login = await _login(client)

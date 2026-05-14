@@ -4,12 +4,12 @@ All tests are pure-Python, no DB or HTTP needed.
 """
 
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
+from unittest.mock import Mock
 
 import jwt
 import pytest
 from fastapi import HTTPException
-from strata_jwt_auth.config import settings
+from strata_jwt_auth.models import User
 from strata_jwt_auth.utils import (
     auth_user_from_token,
     create_access_token,
@@ -22,7 +22,7 @@ from strata_jwt_auth.utils import (
     verify_password,
 )
 
-# ── Password helpers ──────────────────────────────────────────────────────────
+from tests.plugins.jwt_auth.utils import JWT_ALGORITHM, JWT_REFRESH_EXPIRE_DAYS, JWT_SECRET
 
 
 def test_hash_password_returns_string():
@@ -51,7 +51,7 @@ def test_hash_password_is_unique_per_call():
 # ── JWT access token ──────────────────────────────────────────────────────────
 
 
-def _make_user(**kwargs) -> SimpleNamespace:
+def _make_user(**kwargs) -> User:
     """Build a lightweight stand-in for a User ORM row.
 
     ``create_access_token`` and ``user_to_auth_user`` only read ``.id``,
@@ -63,54 +63,41 @@ def _make_user(**kwargs) -> SimpleNamespace:
         "hashed_password": "x",
         "is_admin": False,
     }
-    defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
+    user = Mock(spec_set=User)
+    for key, value in (defaults | kwargs).items():
+        setattr(user, key, value)
+    return user
 
 
-def test_create_access_token_is_decodable(monkeypatch):
-    monkeypatch.setattr(settings, "JWT_SECRET", "test-secret", raising=False)
-    monkeypatch.setattr(settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-
+def test_create_access_token_is_decodable():
     token = create_access_token(_make_user())
-    payload = jwt.decode(token, "test-secret", algorithms=["HS256"])
+    payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     assert payload["username"] == "alice"
     assert payload["sub"] == "test-uuid-1234"
     assert payload["is_admin"] is False
 
 
-def test_decode_access_token_valid(monkeypatch):
-    monkeypatch.setattr(settings, "JWT_SECRET", "test-secret", raising=False)
-    monkeypatch.setattr(settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-
+def test_decode_access_token_valid():
     token = create_access_token(_make_user())
     payload = decode_access_token(token)
     assert payload["username"] == "alice"
 
 
-def test_decode_access_token_expired_raises_401(monkeypatch):
-    monkeypatch.setattr(settings, "JWT_SECRET", "test-secret", raising=False)
-    monkeypatch.setattr(settings, "JWT_ALGORITHM", "HS256", raising=False)
-
+def test_decode_access_token_expired_raises_401():
     expired_payload = {
         "sub": "uid",
         "username": "bob",
         "is_admin": False,
         "exp": datetime.now(UTC) - timedelta(seconds=1),
     }
-    token = jwt.encode(expired_payload, "test-secret", algorithm="HS256")
+    token = jwt.encode(expired_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
     with pytest.raises(HTTPException) as exc_info:
         decode_access_token(token)
     assert exc_info.value.status_code == 401
 
 
-def test_decode_access_token_invalid_signature_raises_401(monkeypatch):
-    monkeypatch.setattr(settings, "JWT_SECRET", "real-secret", raising=False)
-    monkeypatch.setattr(settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-
+def test_decode_access_token_invalid_signature_raises_401():
     token = create_access_token(_make_user())
 
     # Tamper with the signature
@@ -123,11 +110,7 @@ def test_decode_access_token_invalid_signature_raises_401(monkeypatch):
     assert exc_info.value.status_code == 401
 
 
-def test_auth_user_from_token(monkeypatch):
-    monkeypatch.setattr(settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-
+def test_auth_user_from_token():
     token = create_access_token(_make_user(is_admin=True))
     user = auth_user_from_token(token)
     assert user.id == "test-uuid-1234"
@@ -160,18 +143,16 @@ def test_hash_refresh_token_matches_generate():
     assert hash_refresh_token(raw) == expected_hash
 
 
-def test_refresh_token_expiry_in_future(monkeypatch):
-    monkeypatch.setattr(settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
+def test_refresh_token_expiry_in_future():
     expiry = refresh_token_expiry()
     assert expiry > datetime.now(UTC)
 
 
-def test_refresh_token_expiry_approx_30_days(monkeypatch):
-    monkeypatch.setattr(settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
+def test_refresh_token_expiry_approx_30_days():
     expiry = refresh_token_expiry()
     delta = expiry - datetime.now(UTC)
     # Allow a small window for test execution time
-    assert 29.99 < delta.total_seconds() / 86400 <= 30.01
+    assert abs(delta.total_seconds() / 86400 - JWT_REFRESH_EXPIRE_DAYS) < 0.01
 
 
 # ── user_to_auth_user ─────────────────────────────────────────────────────────

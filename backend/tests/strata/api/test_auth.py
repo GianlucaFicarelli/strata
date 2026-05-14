@@ -12,7 +12,6 @@ Tests cover:
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from strata_jwt_auth.config import settings as jwt_settings
 from strata_jwt_auth.models import User
 from strata_jwt_auth.providers import PasswordAuthProvider
 from strata_jwt_auth.utils import create_access_token, hash_password
@@ -89,11 +88,6 @@ async def test_me_with_valid_token_returns_user(
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch,
 ):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_REFRESH_EXPIRE_DAYS", 30, raising=False)
-
     # Register a user
     async with session_scope(session_factory) as session:
         core = CoreUser()
@@ -115,11 +109,7 @@ async def test_me_with_valid_token_returns_user(
 
 async def test_me_with_invalid_token_returns_401(
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch,
 ):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-
     provider = _make_jwt_provider(session_factory)
     app = _make_app(_make_auth_registry(provider))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -153,12 +143,7 @@ async def test_optional_dep_returns_none_when_no_providers():
 
 async def test_auth_registry_verify_token_delegates(
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch,
 ):
-    monkeypatch.setattr(jwt_settings, "JWT_SECRET", "s", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_ALGORITHM", "HS256", raising=False)
-    monkeypatch.setattr(jwt_settings, "JWT_EXPIRE_MINUTES", 15, raising=False)
-
     async with session_scope(session_factory) as session:
         core = CoreUser()
         session.add(core)
@@ -193,6 +178,9 @@ async def test_auth_provider_verify_token_default_returns_none():
 
         async def verify_token(self, token):
             return None
+
+        def describe(self):
+            return {}
 
     reg = AuthRegistry()
     reg.add(_CredentialOnlyProvider())
