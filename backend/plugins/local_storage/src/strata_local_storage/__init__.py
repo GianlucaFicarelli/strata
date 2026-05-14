@@ -27,8 +27,9 @@ import aiofiles
 from fastapi import HTTPException
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import FileEntry, StorageBackend
+from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.files import FileEntry
 
 _ROOT: Path = Path(os.environ.get("STRATA_LOCAL_ROOT", Path.home())).resolve()
 _CHUNK: int = 64 * 1024

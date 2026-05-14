@@ -14,7 +14,6 @@ import pytest
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import MetaData
 
-from strata.plugins.protocols import AuthUser, FileEntry
 from strata.plugins.registry import (
     AuthRegistry,
     DbRegistry,
@@ -25,6 +24,8 @@ from strata.plugins.registry import (
     StorageRegistry,
     ThumbRegistry,
 )
+from strata.schemas.auth import AuthUser
+from strata.schemas.files import FileEntry
 
 # ── Minimal stubs ─────────────────────────────────────────────────────────────
 

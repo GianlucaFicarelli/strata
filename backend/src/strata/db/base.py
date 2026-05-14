@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
@@ -10,7 +10,7 @@ from strata.db.types import TZDateTime
 class Base(DeclarativeBase):
     """Common declarative base."""
 
-    type_annotation_map: ClassVar[dict] = {
+    type_annotation_map: ClassVar[dict[Any, Any]] = {
         datetime: TZDateTime,
     }
     metadata = MetaData(

@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="STRATA_")
 
+    APP_NAME: str = "Strata"
+    APP_VERSION: str = "0.1.0"
+    APP_DESCRIPTION: str = "A plugin-based file browser with swappable storage backends."
     ROOT_DIR: Path = Path("/strata")
     LOCAL_ROOT: Path = Path.home()
     COLLABORA_URL: str = "http://collabora:9980"

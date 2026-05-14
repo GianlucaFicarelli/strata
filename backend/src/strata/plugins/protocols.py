@@ -5,9 +5,8 @@ extension point by passing a conforming object to the appropriate ``add``
 method on :class:`~strata.plugins.registry.PluginRegistry` inside its
 :meth:`~strata.plugins.base.BackendPlugin.register` method.
 
-Protocols are used for *static* type-checking only (pyright, mypy).  Runtime
-dispatch is handled by the registry itself — no ``isinstance`` checks are
-needed in application code.
+Protocols are used for *static* type-checking only (pyright, mypy).
+Runtime dispatch is handled by the registry itself.
 
 Extension points
 ----------------
@@ -32,68 +31,11 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 from sqlalchemy import MetaData
 
-# ── Shared data models ────────────────────────────────────────────────────────
-
-
-class FileEntry(BaseModel):
-    """Metadata for a single file or directory entry.
-
-    Attributes:
-        name: Bare filename, e.g. ``"report.docx"``.
-        path: Backend-relative path, e.g. ``"/docs/report.docx"``.
-        is_dir: ``True`` if this entry represents a directory.
-        size: File size in bytes.  ``None`` for directories or when unknown.
-        modified: Last-modified time as a POSIX timestamp.  ``None`` if the
-            backend does not expose modification times.
-        mime: MIME type string, e.g. ``"image/png"``.  ``None`` if unknown.
-    """
-
-    name: str
-    path: str
-    is_dir: bool
-    size: int | None = None
-    modified: float | None = None
-    mime: str | None = None
-
-
-class AuthUser(BaseModel):
-    """Minimal representation of an authenticated user.
-
-    The ``id`` field is always the corresponding ``core_users.id`` UUID.
-    This is the stable cross-plugin identity: any plugin that stores
-    per-user data should use this value as its ``user_id`` foreign key.
-
-    Attributes:
-        id: Opaque UUID string; corresponds to ``core_users.id``.
-        username: Display name or login handle.
-        is_admin: ``True`` if the user has administrative privileges.
-    """
-
-    id: str
-    username: str
-    is_admin: bool = False
-
-
-class SearchResult(BaseModel):
-    """A single result returned by a search provider.
-
-    Attributes:
-        entry: The matching file entry.
-        score: Relevance score in the range ``[0.0, 1.0]``.  Higher is more
-            relevant.  ``None`` if the provider does not score results.
-        snippet: A short excerpt from the file showing the match in context.
-            ``None`` if the provider does not support snippets.
-    """
-
-    entry: FileEntry
-    score: float | None = None
-    snippet: str | None = None
-
-
-# ── Capability protocols ──────────────────────────────────────────────────────
+from strata.schemas.auth import AuthUser
+from strata.schemas.files import FileEntry
+from strata.schemas.search import SearchResult
 
 
 @runtime_checkable

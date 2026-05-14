@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy import DateTime, Dialect, TypeDecorator
 
 
-class TZDateTime(TypeDecorator):
+class TZDateTime(TypeDecorator[datetime]):
     """Convert timezone aware timestamps into timezone naive and back again.
 
     Adapted from:

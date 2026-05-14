@@ -32,6 +32,7 @@ Typical ``env.py`` for a plugin::
 import asyncio
 import logging
 from pathlib import Path
+from typing import Any
 
 from alembic import command, context
 from alembic.config import Config
@@ -54,7 +55,7 @@ class MigrationEnv:
         self.version_table = f"alembic_version_{plugin_id}"
         self.table_prefix = f"{plugin_id}_"
 
-    def _configure(self, **kwargs) -> None:
+    def _configure(self, **kwargs: Any) -> None:
         context.configure(
             target_metadata=self.target_metadata,
             version_table=self.version_table,

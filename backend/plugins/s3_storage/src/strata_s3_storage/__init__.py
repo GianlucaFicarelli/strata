@@ -24,8 +24,9 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import FileEntry, StorageBackend
+from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.files import FileEntry
 
 
 class S3StorageBackend:

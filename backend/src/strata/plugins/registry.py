@@ -23,15 +23,15 @@ from fastapi import HTTPException
 
 from strata.plugins.protocols import (
     AuthProvider,
-    AuthUser,
     DbContributor,
     FileHandler,
     RouteProvider,
     SearchProvider,
-    SearchResult,
     StorageBackend,
     ThumbProvider,
 )
+from strata.schemas.auth import AuthUser
+from strata.schemas.search import SearchResult
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -392,9 +392,6 @@ class DbRegistry:
             A list of :class:`~strata.plugins.protocols.DbContributor` instances.
         """
         return list(self._contributors)
-
-
-# ── Composite registry ────────────────────────────────────────────────────────
 
 
 @dataclass

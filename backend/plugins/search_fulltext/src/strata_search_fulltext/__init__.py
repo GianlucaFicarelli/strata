@@ -30,8 +30,10 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import FileEntry, SearchProvider, SearchResult  # noqa: F401
+from strata.plugins.protocols import SearchProvider  # noqa: F401
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.files import FileEntry
+from strata.schemas.search import SearchResult
 
 _INDEX_DIR: Path = Path(
     os.environ.get("STRATA_SEARCH_INDEX_DIR", Path.home() / ".strata" / "search_index")

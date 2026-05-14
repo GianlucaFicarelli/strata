@@ -18,7 +18,7 @@ GET  /api/plugins/jwt_auth/me
     Return the currently authenticated user's profile.
 
 All state lives in the shared Strata database via the
-:data:`~strata.dependencies.AsyncSessionDep` dependency.
+:data:`~strata.dependencies.db.AsyncSessionDep` dependency.
 """
 
 from typing import Annotated
@@ -29,8 +29,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from strata.db.models import CoreUser
-from strata.dependencies import AsyncSessionDep
-from strata.plugins.protocols import AuthUser
+from strata.dependencies.db import AsyncSessionDep
+from strata.schemas.auth import AuthUser
 from strata_jwt_auth.config import settings
 from strata_jwt_auth.models import RefreshToken, User
 from strata_jwt_auth.schemas import (

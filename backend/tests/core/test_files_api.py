@@ -11,10 +11,11 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from strata.dependencies import auth_registry_dep, storage_registry_dep
+from strata.dependencies.registry import auth_registry_dep, storage_registry_dep
 from strata.main import app
-from strata.plugins.protocols import FileEntry, StorageBackend
+from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import AuthRegistry, StorageRegistry
+from strata.schemas.files import FileEntry
 
 # ── In-memory stub backend ────────────────────────────────────────────────────
 

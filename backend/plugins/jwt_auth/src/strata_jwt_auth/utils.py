@@ -21,7 +21,7 @@ import jwt
 from fastapi import HTTPException, status
 from pwdlib import PasswordHash
 
-from strata.plugins.protocols import AuthUser
+from strata.schemas.auth import AuthUser
 from strata_jwt_auth.config import settings
 from strata_jwt_auth.models import User
 

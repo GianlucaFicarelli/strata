@@ -33,8 +33,8 @@ from typing import Any
 from sqlalchemy import MetaData
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import FileEntry
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.files import FileEntry
 from strata_smb_storage.models import Base
 
 # ── DbContributor ─────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ class SmbStorageBackend:
 
     For now uses service-level credentials from environment variables.
     Phase 2 will load per-user credentials from ``smb_storage_credentials``
-    via :data:`~strata.dependencies.AsyncSessionDep`.
+    via :data:`~strata.dependencies.db.AsyncSessionDep`.
 
     Attributes:
         id: ``"smb_storage"``

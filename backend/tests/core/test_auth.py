@@ -20,11 +20,7 @@ from strata_jwt_auth.utils import create_access_token, hash_password
 from strata.api.auth import router as auth_router
 from strata.db.models import CoreUser
 from strata.db.session import session_scope
-from strata.dependencies import (
-    auth_registry_dep,
-    storage_registry_dep,
-)
-from strata.dependencies import auth_registry_dep as dep
+from strata.dependencies.registry import auth_registry_dep, storage_registry_dep
 from strata.main import app as main_app
 from strata.plugins.registry import AuthRegistry, StorageRegistry
 
@@ -137,7 +133,7 @@ async def test_me_with_invalid_token_returns_401(
 async def test_optional_dep_returns_none_when_no_providers():
     """With an empty AuthRegistry, the dep should return None (not raise)."""
 
-    main_app.dependency_overrides[dep] = _make_auth_registry
+    main_app.dependency_overrides[auth_registry_dep] = _make_auth_registry
 
     async with AsyncClient(transport=ASGITransport(app=main_app), base_url="http://test") as c:
         # /api/auth/providers uses auth_registry but not the optional dep;
@@ -148,7 +144,7 @@ async def test_optional_dep_returns_none_when_no_providers():
     # 400 (unknown backend) proves the dep resolved (didn't 401)
     assert resp.status_code == 400
 
-    main_app.dependency_overrides.pop(dep, None)
+    main_app.dependency_overrides.pop(auth_registry_dep, None)
     main_app.dependency_overrides.pop(storage_registry_dep, None)
 
 

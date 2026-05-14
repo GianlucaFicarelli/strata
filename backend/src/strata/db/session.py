@@ -6,7 +6,7 @@ The engine and ``async_sessionmaker`` are created once in :mod:`strata.main`
 during the FastAPI lifespan and stored in ``request.state`` so that:
 
 - Any route or FastAPI ``Depends`` can obtain a session via
-  :data:`~strata.dependencies.AsyncSessionDep`.
+  :data:`~strata.dependencies.db.AsyncSessionDep`.
 - Plugins never need to manage their own engines; they only declare their ORM
   models and register their ``MetaData`` (and optional Alembic config path)
   via :class:`~strata.plugins.registry.DbRegistry`.
@@ -75,8 +75,8 @@ async def session_scope(
     """Context manager yielding one :class:`~sqlalchemy.ext.asyncio.AsyncSession` per request.
 
     This is a low-level helper used by the FastAPI ``Depends`` chain in
-    :mod:`strata.dependencies`.  Application code should use
-    :data:`~strata.dependencies.AsyncSessionDep` instead.
+    :mod:`strata.dependencies.db`.  Application code should use
+    :data:`~strata.dependencies.db.AsyncSessionDep` instead.
 
     The session is committed on success and rolled back on any exception,
     then always closed.

@@ -8,8 +8,8 @@ from sqlalchemy import MetaData, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import AuthUser
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.auth import AuthUser
 from strata_jwt_auth.models import Base, User
 from strata_jwt_auth.router import plugin_router
 from strata_jwt_auth.utils import auth_user_from_token, user_to_auth_user, verify_password
@@ -225,7 +225,7 @@ class JwtAuthPlugin(BackendPlugin):
 
         Therefore the session factory injection is deferred: the router
         dependency :func:`~strata_jwt_auth.router.current_user_dep` and the
-        :data:`~strata.dependencies.AsyncSessionDep` both run at request time
+        :data:`~strata.dependencies.db.AsyncSessionDep` both run at request time
         when the factory is already in ``request.state``.  The
         ``PasswordAuthProvider`` is only needed when
         :meth:`~strata.plugins.registry.AuthRegistry.authenticate` is called

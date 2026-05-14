@@ -16,7 +16,7 @@ from strata_jwt_auth.config import settings as jwt_settings
 from strata_jwt_auth.router import plugin_router
 
 from strata.db.session import session_scope
-from strata.dependencies import db_session_dep, session_factory_dep
+from strata.dependencies.db import db_session_dep, session_factory_dep
 
 # ── App fixture ───────────────────────────────────────────────────────────────
 
