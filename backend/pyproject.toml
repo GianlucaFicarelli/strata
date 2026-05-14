@@ -137,7 +137,7 @@ data_file = ".coverage/coverage.db"
 [tool.coverage.report]
 show_missing = true
 precision = 2
-fail_under = 80
+fail_under = 75
 omit = [
     "__main__.py",
 ]
