@@ -5,12 +5,12 @@ requires-python = ">=3.14"
 [manifest]
 members = [
     "strata",
+    "strata-auth-jwt",
     "strata-collabora",
     "strata-image-preview",
-    "strata-auth-jwt",
+    "strata-search-fulltext",
     "strata-storage-local",
     "strata-storage-s3",
-    "strata-search-fulltext",
     "strata-storage-smb",
 ]
 
@@ -885,7 +885,6 @@ dependencies = [
     { name = "aiofiles" },
     { name = "aiosqlite" },
     { name = "alembic" },
-    { name = "anyio" },
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -896,12 +895,12 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "strata-auth-jwt" },
     { name = "strata-collabora" },
     { name = "strata-image-preview" },
-    { name = "strata-auth-jwt" },
+    { name = "strata-search-fulltext" },
     { name = "strata-storage-local" },
     { name = "strata-storage-s3" },
-    { name = "strata-search-fulltext" },
     { name = "strata-storage-smb" },
 ]
 
@@ -921,18 +920,17 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=25.1" },
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "alembic", specifier = ">=1.18.4" },
-    { name = "anyio", specifier = ">=4.13.0" },
     { name = "fastapi", specifier = ">=0.136" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "pydantic-settings", specifier = ">=2.14" },
     { name = "python-multipart", specifier = ">=0.0.27" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+    { name = "strata-auth-jwt", marker = "extra == 'all'", editable = "plugins/auth_jwt" },
     { name = "strata-collabora", marker = "extra == 'all'", editable = "plugins/collabora" },
     { name = "strata-image-preview", marker = "extra == 'all'", editable = "plugins/image_preview" },
-    { name = "strata-auth-jwt", marker = "extra == 'all'", editable = "plugins/auth_jwt" },
+    { name = "strata-search-fulltext", marker = "extra == 'all'", editable = "plugins/search_fulltext" },
     { name = "strata-storage-local", marker = "extra == 'all'", editable = "plugins/storage_local" },
     { name = "strata-storage-s3", marker = "extra == 'all'", editable = "plugins/storage_s3" },
-    { name = "strata-search-fulltext", marker = "extra == 'all'", editable = "plugins/search_fulltext" },
     { name = "strata-storage-smb", marker = "extra == 'all'", editable = "plugins/storage_smb" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.46" },
 ]
@@ -947,6 +945,31 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.6" },
+]
+
+[[package]]
+name = "strata-auth-jwt"
+version = "0.1.0"
+source = { editable = "plugins/auth_jwt" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pwdlib", extra = ["argon2"] },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "strata" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
+    { name = "pydantic", specifier = ">=2.13.3" },
+    { name = "pydantic-settings", specifier = ">=2.14.0" },
+    { name = "pyjwt", specifier = ">=2.12.1" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+    { name = "strata", editable = "." },
 ]
 
 [[package]]
@@ -984,28 +1007,20 @@ requires-dist = [
 ]
 
 [[package]]
-name = "strata-auth-jwt"
+name = "strata-search-fulltext"
 version = "0.1.0"
-source = { editable = "plugins/auth_jwt" }
+source = { editable = "plugins/search_fulltext" }
 dependencies = [
     { name = "fastapi" },
-    { name = "pwdlib", extra = ["argon2"] },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "strata" },
+    { name = "whoosh" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
-    { name = "pydantic", specifier = ">=2.13.3" },
-    { name = "pydantic-settings", specifier = ">=2.14.0" },
-    { name = "pyjwt", specifier = ">=2.12.1" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "strata", editable = "." },
+    { name = "whoosh", specifier = ">=2.7" },
 ]
 
 [[package]]
@@ -1036,23 +1051,6 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.34" },
     { name = "strata", editable = "." },
-]
-
-[[package]]
-name = "strata-search-fulltext"
-version = "0.1.0"
-source = { editable = "plugins/search_fulltext" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "strata" },
-    { name = "whoosh" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "strata", editable = "." },
-    { name = "whoosh", specifier = ">=2.7" },
 ]
 
 [[package]]
