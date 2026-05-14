@@ -11,7 +11,7 @@ strata/                              ← repo root (WORKDIR in Docker: /strata)
 │   ├── uv.lock                      ← committed; used for reproducible installs
 │   ├── plugins/                     ← installable plugin packages (workspace members)
 │   │   ├── storage_local/           ← strata-storage-local
-│   │   ├── s3_storage/              ← strata-s3-storage
+│   │   ├── storage_s3/              ← strata-storage-s3
 │   │   ├── storage_smb/             ← strata-storage-smb
 │   │   ├── image_preview/           ← strata-image-preview
 │   │   ├── search_fulltext/         ← strata-search-fulltext
@@ -99,7 +99,7 @@ Set `STRATA_ENABLED_PLUGINS` in `.env` or the environment (comma-separated):
 STRATA_ENABLED_PLUGINS=storage_local,image_preview,auth_jwt
 ```
 
-The default (in `config.py`) enables `storage_local`, `storage_smb`, and `s3_storage`.
+The default (in `config.py`) enables `storage_local`, `storage_smb`, and `storage_s3`.
 Only plugins whose entry point name appears in this list are loaded.
 
 ### Lifecycle
@@ -133,7 +133,7 @@ chains in the core — the registry's typed `add()` methods are the only dispatc
 | Package | Entry point | Provides |
 |---|---|---|
 | `strata-storage-local` | `storage_local` | `StorageBackend` — local filesystem |
-| `strata-s3-storage` | `s3_storage` | `StorageBackend` — S3-compatible stores |
+| `strata-storage-s3` | `storage_s3` | `StorageBackend` — S3-compatible stores |
 | `strata-storage-smb` | `storage_smb` | `StorageBackend` — SMB/CIFS shares |
 | `strata-image-preview` | `image_preview` | `ThumbProvider` + `FileHandler` for images |
 | `strata-search-fulltext` | `search_fulltext` | `SearchProvider` — full-text indexing |
@@ -211,7 +211,7 @@ All file routes live under `/api/files/*`. The backend is selected per-request v
 
 ```
 GET    /api/files/list?backend=storage_local&path=/docs
-GET    /api/files/download?backend=s3_storage&path=/report.pdf
+GET    /api/files/download?backend=storage_s3&path=/report.pdf
 POST   /api/files/upload?backend=storage_local&path=/uploads
 DELETE /api/files/delete?backend=storage_local&path=/tmp/old.txt
 POST   /api/files/mkdir?backend=storage_local&path=/new-dir

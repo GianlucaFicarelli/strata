@@ -7,7 +7,7 @@ an S3 bucket as a virtual filesystem.  Object keys are mapped to
 Entry point::
 
     [project.entry-points."strata.plugins"]
-    s3_storage = "strata_s3_storage:plugin"
+    storage_s3 = "strata_storage_s3:plugin"
 
 Configuration:
     STRATA_S3_BUCKET: S3 bucket name (required).
@@ -15,7 +15,7 @@ Configuration:
     AWS_ACCESS_KEY_ID: AWS access key (or use an instance/task IAM role).
     AWS_SECRET_ACCESS_KEY: AWS secret key.
 
-To activate, install this package and add ``s3_storage`` to
+To activate, install this package and add ``storage_s3`` to
 ``STRATA_ENABLED_PLUGINS``.
 """
 
@@ -34,13 +34,13 @@ class S3StorageBackend:
     Implements the :class:`~strata.plugins.protocols.StorageBackend` protocol.
 
     Attributes:
-        id: ``"s3_storage"``
+        id: ``"storage_s3"``
         name: ``"Amazon S3"``
         bucket: Name of the S3 bucket, from ``STRATA_S3_BUCKET``.
         region: AWS region, from ``AWS_REGION``.
     """
 
-    id: str = "s3_storage"
+    id: str = "storage_s3"
     name: str = "Amazon S3"
 
     def __init__(self) -> None:
@@ -150,7 +150,7 @@ class S3StoragePlugin(BackendPlugin):
     - ``registry.storage``: :class:`S3StorageBackend`
     """
 
-    id = "s3_storage"
+    id = "storage_s3"
     name = "S3 Storage"
     version = "0.1.0"
     description = "Exposes an Amazon S3 bucket as a storage backend."

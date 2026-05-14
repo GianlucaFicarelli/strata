@@ -1,5 +1,5 @@
 [project]
-name = "strata-s3-storage"
+name = "strata-storage-s3"
 version = "0.1.0"
 description = "Amazon S3 storage backend for Strata."
 requires-python = ">=3.14"
@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.entry-points."strata.plugins"]
-s3_storage = "strata_s3_storage:plugin"
+storage_s3 = "strata_storage_s3:plugin"
 
 [tool.uv.sources]
 strata = { workspace = true }

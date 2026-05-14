@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     ENABLED_PLUGINS: list[str] = [
         "storage_local",
         "storage_smb",
-        "s3_storage",
+        "storage_s3",
         "image_preview",
         # "collabora",
         "auth_jwt",
