@@ -27,11 +27,11 @@ vi.mock('../../plugin-api/hooks', () => ({
 }));
 
 // Mock FilePreview to avoid deep rendering
-vi.mock('../FilePreview', () => ({
+vi.mock('../../shell/FilePreview', () => ({
   default: ({ file }) => (file ? <div data-testid="file-preview">{file.name}</div> : null),
 }));
 
-import FileBrowser from '../FileBrowser';
+import FileBrowser from '../../shell/FileBrowser';
 import { listBackends, listDir } from '../../core-plugins/api';
 
 const BACKENDS = [
