@@ -14,7 +14,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from strata_jwt_auth.config import settings as jwt_settings
 from strata_jwt_auth.models import User
-from strata_jwt_auth.plugin import PasswordAuthProvider
+from strata_jwt_auth.providers import PasswordAuthProvider
 from strata_jwt_auth.utils import create_access_token, hash_password
 
 from strata.api.auth import router as auth_router

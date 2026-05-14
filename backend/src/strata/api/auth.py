@@ -31,20 +31,13 @@ def list_auth_providers(auth_registry: AuthRegistryDep) -> list[dict]:
 
     The frontend uses this to determine which login UI to show.  Each
     entry includes at minimum ``id`` and ``name``.  Providers may expose
-    additional metadata (e.g. ``login_url``, ``scopes``) by overriding
-    :meth:`~strata.plugins.protocols.AuthProvider.describe` — if that
-    method exists; otherwise a minimal dict is built here.
+    additional metadata (e.g. ``login_url``, ``scopes``) by implementing
+    :meth:`~strata.plugins.protocols.AuthProvider.describe`.
 
     Returns:
         A list of provider description dicts, one per registered provider.
     """
-    result = []
-    for provider in auth_registry.all():
-        if hasattr(provider, "describe") and callable(provider.describe):
-            result.append(provider.describe())
-        else:
-            result.append({"id": provider.id, "name": provider.name})
-    return result
+    return [provider.describe() for provider in auth_registry.all()]
 
 
 @router.get("/me")

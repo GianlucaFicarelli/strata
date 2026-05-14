@@ -231,7 +231,11 @@ class AuthProvider(Protocol):
         Raises:
             HTTPException: 401 if the token is recognised but invalid/expired.
         """
-        return None
+        ...
+
+    def describe(self) -> dict[str, Any]:
+        """Return provider metadata for the frontend."""
+        ...
 
 
 @runtime_checkable
