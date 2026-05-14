@@ -205,3 +205,6 @@ class SmbStoragePlugin(BackendPlugin):
         """
         registry.db.add(SmbStorageDbContributor())
         registry.storage.add(SmbStorageBackend())
+
+
+plugin = SmbStoragePlugin()

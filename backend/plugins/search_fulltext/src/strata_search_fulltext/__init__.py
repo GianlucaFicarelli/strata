@@ -175,3 +175,6 @@ class FullTextSearchPlugin(BackendPlugin):
     async def on_startup(self) -> None:
         """Ensure the Whoosh index directory exists."""
         _INDEX_DIR.mkdir(parents=True, exist_ok=True)
+
+
+plugin = FullTextSearchPlugin()
