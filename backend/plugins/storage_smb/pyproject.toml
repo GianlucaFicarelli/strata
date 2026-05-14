@@ -1,5 +1,5 @@
 [project]
-name = "strata-smb-storage"
+name = "strata-storage-smb"
 version = "0.1.0"
 description = "SMB/CIFS network share storage backend for Strata."
 requires-python = ">=3.14"
@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.entry-points."strata.plugins"]
-smb_storage = "strata_smb_storage:plugin"
+storage_smb = "strata_storage_smb:plugin"
 
 [tool.uv.sources]
 strata = { workspace = true }

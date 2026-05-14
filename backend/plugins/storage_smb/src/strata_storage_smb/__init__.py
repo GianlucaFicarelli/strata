@@ -5,14 +5,14 @@ Contributes:
 - :class:`~strata.plugins.protocols.StorageBackend`: accesses a Samba /
   Windows share via the SMB protocol.
 - :class:`~strata.plugins.protocols.DbContributor`: declares the
-  ``smb_storage_credentials`` table so per-user credentials can be stored.
+  ``storage_smb_credentials`` table so per-user credentials can be stored.
   The ``user_id`` FK points at ``core_users.id`` — no dependency on any
   specific auth plugin.
 
 Entry point::
 
     [project.entry-points."strata.plugins"]
-    smb_storage = "strata_smb_storage:plugin"
+    storage_smb = "strata_storage_smb:plugin"
 
 Configuration (service-level fallback — used when no per-user credential row
 exists for the requesting user):
@@ -30,18 +30,18 @@ from importlib.resources import files
 from pathlib import Path
 
 from sqlalchemy import MetaData
+from strata_storage_smb.models import Base
 
 from strata.plugins.base import BackendPlugin
 from strata.plugins.registry import PluginRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
-from strata_smb_storage.models import Base
 
 # ── DbContributor ─────────────────────────────────────────────────────────────
 
 
 class SmbStorageDbContributor:
-    """Registers ``smb_storage_credentials`` and its Alembic migrations.
+    """Registers ``storage_smb_credentials`` and its Alembic migrations.
 
     Attributes:
         metadata: SQLAlchemy :class:`~sqlalchemy.MetaData` for this plugin.
@@ -50,7 +50,7 @@ class SmbStorageDbContributor:
     """
 
     metadata: MetaData = Base.metadata
-    migrations_dir: Path = Path(str(files("strata_smb_storage").joinpath("migrations")))
+    migrations_dir: Path = Path(str(files("strata_storage_smb").joinpath("migrations")))
 
 
 # ── StorageBackend ────────────────────────────────────────────────────────────
@@ -60,15 +60,15 @@ class SmbStorageBackend:
     """Storage backend that accesses an SMB/CIFS network share.
 
     For now uses service-level credentials from environment variables.
-    Phase 2 will load per-user credentials from ``smb_storage_credentials``
+    Phase 2 will load per-user credentials from ``storage_smb_credentials``
     via :data:`~strata.dependencies.db.AsyncSessionDep`.
 
     Attributes:
-        id: ``"smb_storage"``
+        id: ``"storage_smb"``
         name: ``"SMB / Network Share"``
     """
 
-    id: str = "smb_storage"
+    id: str = "storage_smb"
     name: str = "SMB / Network Share"
 
     def __init__(self) -> None:
@@ -189,10 +189,10 @@ class SmbStoragePlugin(BackendPlugin):
 
     - ``registry.storage``: :class:`SmbStorageBackend`
     - ``registry.db``: :class:`SmbStorageDbContributor` — declares
-      ``smb_storage_credentials`` with ``user_id FK → core_users.id``.
+      ``storage_smb_credentials`` with ``user_id FK → core_users.id``.
     """
 
-    id = "smb_storage"
+    id = "storage_smb"
     name = "SMB Storage"
     version = "0.1.0"
     description = "Samba / Windows network share storage with per-user credentials."

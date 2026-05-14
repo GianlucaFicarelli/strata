@@ -1,4 +1,4 @@
-"""Initial smb_storage schema: per-user SMB credentials.
+"""Initial storage_smb schema: per-user SMB credentials.
 
 Revision ID: 0001
 Revises:
@@ -12,7 +12,7 @@ from alembic import op
 
 revision: str = "0001"
 down_revision: str | None = None
-branch_labels: str | Sequence[str] | None = ("smb_storage",)
+branch_labels: str | Sequence[str] | None = ("storage_smb",)
 depends_on: str | Sequence[str] | None = None
 # Ordering guarantee: core_users is created by the core migration which
 # always runs before plugin migrations (see DbRegistry insertion order in
@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.create_table(
-        "smb_storage_credentials",
+        "storage_smb_credentials",
         sa.Column("id", sa.String(36), primary_key=True),
         sa.Column(
             "user_id",
@@ -39,11 +39,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index(
-        "ix_smb_storage_credentials_user_id",
-        "smb_storage_credentials",
+        "ix_storage_smb_credentials_user_id",
+        "storage_smb_credentials",
         ["user_id"],
     )
 
 
 def downgrade() -> None:
-    op.drop_table("smb_storage_credentials")
+    op.drop_table("storage_smb_credentials")

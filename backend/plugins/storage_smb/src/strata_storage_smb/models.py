@@ -2,7 +2,7 @@
 
 Table
 -----
-``smb_storage_credentials``
+``storage_smb_credentials``
     Per-user SMB connection parameters.  Each row stores the host, share,
     domain, username, and an encrypted password for one user on one share.
 
@@ -12,7 +12,7 @@ Table
 Encryption
 ----------
 Passwords are stored encrypted.  The encryption helpers live in
-``strata_smb_storage.crypto`` (not implemented here — left for Phase 2).
+``strata_storage_smb.crypto`` (not implemented here — left for Phase 2).
 The column type is ``LargeBinary`` to accommodate any symmetric cipher
 output (AES-GCM ciphertext + nonce + tag).
 """
@@ -47,7 +47,7 @@ class SmbCredential(Base):
         updated_at: UTC timestamp of last credential update.
     """
 
-    __tablename__ = "smb_storage_credentials"
+    __tablename__ = "storage_smb_credentials"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid)
     user_id: Mapped[str] = mapped_column(

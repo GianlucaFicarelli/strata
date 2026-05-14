@@ -12,7 +12,7 @@ strata/                              ← repo root (WORKDIR in Docker: /strata)
 │   ├── plugins/                     ← installable plugin packages (workspace members)
 │   │   ├── storage_local/           ← strata-storage-local
 │   │   ├── s3_storage/              ← strata-s3-storage
-│   │   ├── smb_storage/             ← strata-smb-storage
+│   │   ├── storage_smb/             ← strata-storage-smb
 │   │   ├── image_preview/           ← strata-image-preview
 │   │   ├── search_fulltext/         ← strata-search-fulltext
 │   │   ├── collabora/               ← strata-collabora
@@ -99,7 +99,7 @@ Set `STRATA_ENABLED_PLUGINS` in `.env` or the environment (comma-separated):
 STRATA_ENABLED_PLUGINS=storage_local,image_preview,auth_jwt
 ```
 
-The default (in `config.py`) enables `storage_local`, `smb_storage`, and `s3_storage`.
+The default (in `config.py`) enables `storage_local`, `storage_smb`, and `s3_storage`.
 Only plugins whose entry point name appears in this list are loaded.
 
 ### Lifecycle
@@ -134,7 +134,7 @@ chains in the core — the registry's typed `add()` methods are the only dispatc
 |---|---|---|
 | `strata-storage-local` | `storage_local` | `StorageBackend` — local filesystem |
 | `strata-s3-storage` | `s3_storage` | `StorageBackend` — S3-compatible stores |
-| `strata-smb-storage` | `smb_storage` | `StorageBackend` — SMB/CIFS shares |
+| `strata-storage-smb` | `storage_smb` | `StorageBackend` — SMB/CIFS shares |
 | `strata-image-preview` | `image_preview` | `ThumbProvider` + `FileHandler` for images |
 | `strata-search-fulltext` | `search_fulltext` | `SearchProvider` — full-text indexing |
 | `strata-collabora` | `collabora` | `RouteProvider` (WOPI host) + `FileHandler` (iframe editor) |

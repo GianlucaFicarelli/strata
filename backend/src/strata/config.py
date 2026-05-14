@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     ENTRY_POINT_GROUP: str = "strata.plugins"
     ENABLED_PLUGINS: list[str] = [
         "storage_local",
-        "smb_storage",
+        "storage_smb",
         "s3_storage",
         "image_preview",
         # "collabora",
