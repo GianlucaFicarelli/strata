@@ -21,14 +21,13 @@ import os
 import shutil
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
 
 import aiofiles
 from fastapi import HTTPException
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
 
 _ROOT: Path = Path(os.environ.get("STRATA_LOCAL_ROOT", Path.home())).resolve()
@@ -184,17 +183,17 @@ class LocalStorageBackend:
         """
         shutil.move(str(_safe(src)), str(_safe(dst)))
 
-    def describe(self) -> dict[str, Any]:
+    def describe(self) -> StorageMeta:
         """Return backend metadata including the configured root path.
 
         Returns:
             A dict with ``id``, ``name``, and ``root`` keys.
         """
-        return {"id": self.id, "name": self.name, "root": str(_ROOT)}
-
-
-# Verify the protocol is satisfied at import time (caught by pyright too).
-_: StorageBackend = LocalStorageBackend()  # type: ignore[assignment]
+        return StorageMeta(
+            id=self.id,
+            name=self.name,
+            # root=str(_ROOT),
+        )
 
 
 class LocalStoragePlugin(BackendPlugin):

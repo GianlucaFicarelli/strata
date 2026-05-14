@@ -2,12 +2,13 @@ from fastapi import APIRouter, Request
 
 from strata.dependencies.registry import StorageRegistryDep
 from strata.plugins.loader import PluginLoader
+from strata.schemas.common import PluginMeta, StorageMeta
 
 router = APIRouter(prefix="/api", tags=["meta"])
 
 
 @router.get("/plugins")
-def list_plugins(request: Request) -> list[dict]:
+def list_plugins(request: Request) -> list[PluginMeta]:
     """Return metadata for every loaded plugin.
 
     The frontend uses this to dynamically import each plugin's JS module
@@ -22,7 +23,7 @@ def list_plugins(request: Request) -> list[dict]:
 
 
 @router.get("/backends")
-def list_backends(storage_registry: StorageRegistryDep) -> list[dict]:
+def list_backends(storage_registry: StorageRegistryDep) -> list[StorageMeta]:
     """Return metadata for every registered storage backend.
 
     The frontend uses this to populate the backend picker dropdown.

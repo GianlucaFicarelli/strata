@@ -21,11 +21,10 @@ To activate, install this package and add ``s3_storage`` to
 
 import os
 from collections.abc import AsyncIterator
-from typing import Any
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
 
 
@@ -129,21 +128,18 @@ class S3StorageBackend:
             ``copy_object`` followed by ``delete_object``.
         """
 
-    def describe(self) -> dict[str, Any]:
+    def describe(self) -> StorageMeta:
         """Return backend metadata including bucket and region.
 
         Returns:
             A dict with ``id``, ``name``, ``bucket``, and ``region`` keys.
         """
-        return {
-            "id": self.id,
-            "name": self.name,
-            "bucket": self.bucket,
-            "region": self.region,
-        }
-
-
-_: StorageBackend = S3StorageBackend()  # type: ignore[assignment]
+        return StorageMeta(
+            id=self.id,
+            name=self.name,
+            # bucket=self.bucket,
+            # region=self.region,
+        )
 
 
 class S3StoragePlugin(BackendPlugin):

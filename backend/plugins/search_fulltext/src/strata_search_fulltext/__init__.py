@@ -30,7 +30,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import SearchProvider  # noqa: F401
+from strata.plugins.protocols import SearchProvider  # noqa: F401 # type: ignore
 from strata.plugins.registry import PluginRegistry
 from strata.schemas.files import FileEntry
 from strata.schemas.search import SearchResult

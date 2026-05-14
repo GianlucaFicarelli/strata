@@ -30,7 +30,14 @@ from fastapi.responses import StreamingResponse
 from strata.dependencies.auth import OptionalCurrentUserDep
 from strata.dependencies.registry import StorageRegistryDep
 from strata.dependencies.storage import StorageBackendDep
-from strata.schemas.files import FileEntry, MoveRequest
+from strata.schemas.files import (
+    DirectoryCreateResult,
+    FileDeleteResult,
+    FileEntry,
+    FileMoveRequest,
+    FileMoveResult,
+    FileUploadResult,
+)
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -67,7 +74,7 @@ async def upload_file(
     file: Annotated[UploadFile, File()],
     storage: StorageBackendDep,
     current_user: OptionalCurrentUserDep,
-) -> dict:
+) -> FileUploadResult:
     """Upload a file to the selected backend."""
     dest = str(Path(path) / (file.filename or "noname"))
 
@@ -76,7 +83,13 @@ async def upload_file(
             yield chunk
 
     await storage.write(dest, _stream())
-    return {"status": "ok", "path": dest, "backend": storage.id}
+    return FileUploadResult.model_validate(
+        {
+            "status": "ok",
+            "path": dest,
+            "backend": storage.id,
+        }
+    )
 
 
 @router.delete("/delete")
@@ -84,10 +97,10 @@ async def delete_path(
     path: Annotated[str, Query(description="Path to delete")],
     storage: StorageBackendDep,
     current_user: OptionalCurrentUserDep,
-) -> dict:
+) -> FileDeleteResult:
     """Delete a file or directory on the selected backend."""
     await storage.delete(path)
-    return {"status": "ok"}
+    return FileDeleteResult.model_validate({"status": "ok"})
 
 
 @router.post("/mkdir")
@@ -95,19 +108,19 @@ async def make_dir(
     path: Annotated[str, Query(description="Directory path to create")],
     storage: StorageBackendDep,
     current_user: OptionalCurrentUserDep,
-) -> dict:
+) -> DirectoryCreateResult:
     """Create a directory on the selected backend."""
     await storage.mkdir(path)
-    return {"status": "ok"}
+    return DirectoryCreateResult.model_validate({"status": "ok"})
 
 
 @router.post("/move")
 async def move_path(
     storage_registry: StorageRegistryDep,
-    req: MoveRequest,
+    req: FileMoveRequest,
     current_user: OptionalCurrentUserDep,
-) -> dict:
+) -> FileMoveResult:
     """Move or rename a path on the selected backend."""
     storage = storage_registry.get(req.backend)
     await storage.move(req.src, req.dst)
-    return {"status": "ok"}
+    return FileMoveResult.model_validate({"status": "ok"})

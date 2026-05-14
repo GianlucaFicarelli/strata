@@ -16,6 +16,7 @@ from strata_jwt_auth.utils import hash_password
 from strata.db.models import CoreUser
 from strata.db.session import session_scope
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.common import PluginMeta
 
 # ── JwtAuthPlugin.register ────────────────────────────────────────────────────
 
@@ -50,8 +51,8 @@ def test_plugin_registers_route_provider():
 def test_plugin_describe():
     plugin = JwtAuthPlugin()
     desc = plugin.describe()
-    assert desc["id"] == "jwt_auth"
-    assert "version" in desc
+    assert isinstance(desc, PluginMeta)
+    assert desc.id == "jwt_auth"
 
 
 def test_plugin_migrations_dir_exists():

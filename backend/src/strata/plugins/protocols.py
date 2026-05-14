@@ -34,6 +34,7 @@ from fastapi import APIRouter
 from sqlalchemy import MetaData
 
 from strata.schemas.auth import AuthUser
+from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
 from strata.schemas.search import SearchResult
 
@@ -125,13 +126,13 @@ class StorageBackend(Protocol):
         """
         ...
 
-    def describe(self) -> dict[str, Any]:
-        """Return a JSON-serialisable summary of this backend.
+    def describe(self) -> StorageMeta:
+        """Return a summary of this backend.
 
         Used by ``GET /api/backends`` to populate the frontend backend picker.
 
         Returns:
-            A dict with at least ``"id"`` and ``"name"`` keys.
+            An instance of StorageMeta with at least ``"id"`` and ``"name"``.
         """
         ...
 

@@ -22,7 +22,7 @@ class FileEntry(BaseModel):
     mime: str | None = None
 
 
-class MoveRequest(BaseModel):
+class FileMoveRequest(BaseModel):
     """Request body for the move / rename endpoint.
 
     Attributes:
@@ -35,3 +35,21 @@ class MoveRequest(BaseModel):
     src: str
     dst: str
     backend: str = "local"
+
+
+class FileUploadResult(BaseModel):
+    status: str
+    path: str
+    backend: str
+
+
+class FileDeleteResult(BaseModel):
+    status: str
+
+
+class FileMoveResult(BaseModel):
+    status: str
+
+
+class DirectoryCreateResult(BaseModel):
+    status: str

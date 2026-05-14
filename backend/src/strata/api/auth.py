@@ -16,6 +16,8 @@ GET  /api/auth/me
     bearer token (from any registered provider).
 """
 
+from typing import Any
+
 from fastapi import APIRouter
 
 from strata.dependencies.auth import CurrentUserDep
@@ -26,7 +28,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.get("/providers")
-def list_auth_providers(auth_registry: AuthRegistryDep) -> list[dict]:
+def list_auth_providers(auth_registry: AuthRegistryDep) -> list[dict[str, Any]]:
     """Return metadata for every registered auth provider.
 
     The frontend uses this to determine which login UI to show.  Each

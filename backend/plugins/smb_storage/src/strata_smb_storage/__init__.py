@@ -28,12 +28,12 @@ import os
 from collections.abc import AsyncIterator
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
 
 from sqlalchemy import MetaData
 
 from strata.plugins.base import BackendPlugin
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
 from strata_smb_storage.models import Base
 
@@ -167,19 +167,19 @@ class SmbStorageBackend:
             Use ``smbclient.rename(self._unc(src), self._unc(dst))``.
         """
 
-    def describe(self) -> dict[str, Any]:
+    def describe(self) -> StorageMeta:
         """Return backend metadata including host and share name.
 
         Returns:
             A dict with ``id``, ``name``, ``host``, and ``share`` keys.
             Password is intentionally omitted.
         """
-        return {
-            "id": self.id,
-            "name": self.name,
-            "host": self.host,
-            "share": self.share,
-        }
+        return StorageMeta(
+            id=self.id,
+            name=self.name,
+            # host=self.host,
+            # share=self.share,
+        )
 
 
 class SmbStoragePlugin(BackendPlugin):

@@ -1,6 +1,8 @@
 """Base class for all Strata plugins."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from strata.schemas.common import PluginMeta
 
 if TYPE_CHECKING:
     from strata.plugins.registry import PluginRegistry
@@ -92,19 +94,18 @@ class BackendPlugin:
         implementation does nothing.
         """
 
-    def describe(self) -> dict[str, Any]:
+    def describe(self) -> PluginMeta:
         """Return a JSON-serialisable summary of this plugin.
 
         Used by ``GET /api/plugins`` to build the manifest sent to the
         frontend shell.
 
         Returns:
-            A dict with ``id``, ``name``, ``version``, and ``description``.
-            Override to add plugin-specific metadata.
+            A PluginMeta instance.
         """
-        return {
-            "id": self.id,
-            "name": self.name,
-            "version": self.version,
-            "description": self.description,
-        }
+        return PluginMeta(
+            id=self.id,
+            name=self.name,
+            version=self.version,
+            description=self.description,
+        )

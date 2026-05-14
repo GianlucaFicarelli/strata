@@ -40,7 +40,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import FileHandler, RouteProvider  # noqa: F401
+from strata.plugins.protocols import FileHandler, RouteProvider  # noqa: F401 # type: ignore
 from strata.plugins.registry import PluginRegistry
 
 _COLLABORA_URL: str = os.environ.get(
