@@ -1,4 +1,4 @@
-"""Alembic migration environment for strata-jwt-auth."""
+"""Alembic migration environment for strata-auth-jwt."""
 
 from strata_auth_jwt.models import Base
 

@@ -16,7 +16,7 @@ strata/                              ← repo root (WORKDIR in Docker: /strata)
 │   │   ├── image_preview/           ← strata-image-preview
 │   │   ├── search_fulltext/         ← strata-search-fulltext
 │   │   ├── collabora/               ← strata-collabora
-│   │   └── auth_jwt/                ← strata-jwt-auth
+│   │   └── auth_jwt/                ← strata-auth-jwt
 │   └── src/strata/
 │       ├── config.py                ← Settings (pydantic-settings, STRATA_ prefix)
 │       ├── main.py                  ← FastAPI app, lifespan, /api/backends, /api/plugins
@@ -138,7 +138,7 @@ chains in the core — the registry's typed `add()` methods are the only dispatc
 | `strata-image-preview` | `image_preview` | `ThumbProvider` + `FileHandler` for images |
 | `strata-search-fulltext` | `search_fulltext` | `SearchProvider` — full-text indexing |
 | `strata-collabora` | `collabora` | `RouteProvider` (WOPI host) + `FileHandler` (iframe editor) |
-| `strata-jwt-auth` | `auth_jwt` | `AuthProvider` + `RouteProvider` (login/refresh endpoints) |
+| `strata-auth-jwt` | `auth_jwt` | `AuthProvider` + `RouteProvider` (login/refresh endpoints) |
 
 ## Writing a plugin
 

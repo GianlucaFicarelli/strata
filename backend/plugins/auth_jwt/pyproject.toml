@@ -1,5 +1,5 @@
 [project]
-name = "strata-jwt-auth"
+name = "strata-auth-jwt"
 version = "0.1.0"
 description = "JWT-based password authentication plugin for Strata."
 requires-python = ">=3.14"
