@@ -162,6 +162,3 @@ class S3StoragePlugin(BackendPlugin):
             registry: The application-wide plugin registry.
         """
         registry.storage.add(S3StorageBackend())
-
-
-plugin = S3StoragePlugin()

@@ -216,6 +216,3 @@ class LocalStoragePlugin(BackendPlugin):
             registry: The application-wide plugin registry.
         """
         registry.storage.add(LocalStorageBackend())
-
-
-plugin = LocalStoragePlugin()
