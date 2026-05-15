@@ -29,9 +29,16 @@ describe('loadPlugins', () => {
   });
 
   it('does nothing gracefully when backend is unreachable', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
     // Should not throw
     await expect(loadPlugins()).resolves.toBeUndefined();
+    // The warning is expected — assert it fired so we notice if it's ever removed
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[plugin-loader]'),
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
   it('calls register() on each plugin module that has one', async () => {
