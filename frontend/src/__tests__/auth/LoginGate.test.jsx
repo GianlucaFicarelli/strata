@@ -37,6 +37,11 @@ describe('LoginGate', () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
 
     render(<LoginGate><div>{CHILD_TEXT}</div></LoginGate>);
+
+    // Let the providers fetch settle so React can flush all state updates before
+    // the test exits. The spinner must still be shown because loading:true (the
+    // auth token check) controls visibility, not the providers fetch.
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     expect(screen.queryByText(CHILD_TEXT)).not.toBeInTheDocument();
   });
 
