@@ -31,8 +31,7 @@ describe('listBackends', () => {
 
     const result = await listBackends();
     expect(result).toEqual(backends);
-    // api.js always passes a headers object (empty when no token is stored)
-    expect(global.fetch).toHaveBeenCalledWith('/api/backends', expect.objectContaining({ headers: expect.any(Object) }));
+    expect(global.fetch).toHaveBeenCalledWith('/api/backends');
   });
 
   it('throws on non-ok response', async () => {
@@ -94,12 +93,6 @@ describe('moveEntry', () => {
 });
 
 describe('downloadUrl', () => {
-  beforeEach(() => {
-    // Reset fetch so calls from previous describe blocks don't leak in.
-    // downloadUrl() is a pure URL builder — it must never call fetch at all.
-    global.fetch = vi.fn();
-  });
-
   it('returns a URL without fetching', () => {
     const url = downloadUrl('/file.pdf', 'storage_local');
     expect(url).toContain('/api/files/download');
