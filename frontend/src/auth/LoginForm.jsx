@@ -20,7 +20,7 @@ export default function LoginForm({ providers }) {
   const { login } = useAuth();
   const [selectedProvider, setSelectedProvider] = useState(providers[0]);
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState(null);
+  const [error, setError] = useState(null);
 
   const handleFinish = async ({ username, password }) => {
     setError(null);
@@ -35,13 +35,15 @@ export default function LoginForm({ providers }) {
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      background: '#0f0f0f',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: '#0f0f0f',
+      }}
+    >
       <Card
         style={{ width: 360, background: '#1a1a1a', border: '1px solid #262626' }}
         styles={{ body: { padding: '32px 28px' } }}
@@ -49,7 +51,10 @@ export default function LoginForm({ providers }) {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <FolderOutlined style={{ fontSize: 32, color: '#4096ff', marginBottom: 8 }} />
-          <Title level={4} style={{ margin: 0, color: '#e8e8e8', fontFamily: '"DM Mono", monospace' }}>
+          <Title
+            level={4}
+            style={{ margin: 0, color: '#e8e8e8', fontFamily: '"DM Mono", monospace' }}
+          >
             strata
           </Title>
         </div>
@@ -59,8 +64,8 @@ export default function LoginForm({ providers }) {
           <Form.Item label={<Text style={{ color: '#8c8c8c' }}>Sign in with</Text>}>
             <Select
               value={selectedProvider.id}
-              onChange={id => setSelectedProvider(providers.find(p => p.id === id))}
-              options={providers.map(p => ({ value: p.id, label: p.name }))}
+              onChange={(id) => setSelectedProvider(providers.find((p) => p.id === id))}
+              options={providers.map((p) => ({ value: p.id, label: p.name }))}
             />
           </Form.Item>
         )}
@@ -103,13 +108,7 @@ export default function LoginForm({ providers }) {
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              size="large"
-              block
-            >
+            <Button type="primary" htmlType="submit" loading={loading} size="large" block>
               Sign in
             </Button>
           </Form.Item>

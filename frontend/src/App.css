@@ -1,4 +1,18 @@
-* { box-sizing: border-box; }
-body { margin: 0; background: #141414; color: #d9d9d9; font-family: 'DM Mono', 'Fira Code', monospace; }
-a { cursor: pointer; }
-.ant-layout-sider { position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #141414;
+  color: #d9d9d9;
+  font-family: "DM Mono", "Fira Code", monospace;
+}
+a {
+  cursor: pointer;
+}
+.ant-layout-sider {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}

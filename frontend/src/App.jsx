@@ -16,7 +16,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="*" element={<FileBrowser />} />
-      {pluginRoutes.map(r => (
+      {pluginRoutes.map((r) => (
         <Route key={r.id} path={r.path} element={<r.component />} />
       ))}
     </Routes>
@@ -45,7 +45,14 @@ function AppShell() {
           {pluginsReady ? (
             <AppRoutes />
           ) : (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100vh',
+              }}
+            >
               <Spin size="large" description="Loading plugins…" />
             </div>
           )}

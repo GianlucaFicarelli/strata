@@ -23,13 +23,13 @@ import LoginForm from './LoginForm';
 
 export default function LoginGate({ children }) {
   const { user, loading } = useAuth();
-  const [providers, setProviders]         = useState(null); // null = not yet loaded
+  const [providers, setProviders] = useState(null); // null = not yet loaded
   const [providersLoading, setProvidersLoading] = useState(true);
 
   useEffect(() => {
     fetch('/api/auth/providers')
-      .then(r => r.json())
-      .then(p => setProviders(p))
+      .then((r) => r.json())
+      .then((p) => setProviders(p))
       .catch(() => setProviders([]))
       .finally(() => setProvidersLoading(false));
   }, []);
@@ -37,7 +37,15 @@ export default function LoginGate({ children }) {
   // Still verifying the stored token or loading provider list
   if (loading || providersLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#141414' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          background: '#141414',
+        }}
+      >
         <Spin size="large" />
       </div>
     );

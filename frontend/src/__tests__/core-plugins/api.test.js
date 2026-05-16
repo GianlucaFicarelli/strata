@@ -32,7 +32,10 @@ describe('listBackends', () => {
     const result = await listBackends();
     expect(result).toEqual(backends);
     // api.js always passes a headers object (empty when no token is stored)
-    expect(global.fetch).toHaveBeenCalledWith('/api/backends', expect.objectContaining({ headers: expect.any(Object) }));
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/backends',
+      expect.objectContaining({ headers: expect.any(Object) }),
+    );
   });
 
   it('throws on non-ok response', async () => {

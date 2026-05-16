@@ -54,9 +54,12 @@ describe('token hydration', () => {
 
     expect(result.current.user).toEqual({ id: 'u1', username: 'alice', is_admin: false });
     expect(result.current.token).toBe('valid.jwt.token');
-    expect(fetch).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({
-      headers: { Authorization: 'Bearer valid.jwt.token' },
-    }));
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/auth/me',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer valid.jwt.token' },
+      }),
+    );
   });
 
   it('clears token when /api/auth/me returns non-ok', async () => {
@@ -89,7 +92,8 @@ describe('token hydration', () => {
 describe('login()', () => {
   it('sets token and user on success', async () => {
     // Initial mount: no token
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       // First call: POST /api/plugins/auth_jwt/login
       .mockResolvedValueOnce({
         ok: true,
@@ -105,11 +109,7 @@ describe('login()', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
-      await result.current.login(
-        '/api/plugins/auth_jwt/login',
-        'bob',
-        'password123',
-      );
+      await result.current.login('/api/plugins/auth_jwt/login', 'bob', 'password123');
     });
 
     expect(result.current.user).toEqual({ id: 'u2', username: 'bob', is_admin: false });
@@ -129,7 +129,7 @@ describe('login()', () => {
     await expect(
       act(async () => {
         await result.current.login('/api/plugins/auth_jwt/login', 'bad', 'bad');
-      })
+      }),
     ).rejects.toThrow('Incorrect username or password');
 
     expect(result.current.user).toBeNull();
@@ -165,9 +165,7 @@ describe('useAuth() guard', () => {
   it('throws when used outside AuthProvider', () => {
     // Suppress the React error boundary console output
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => renderHook(() => useAuth())).toThrow(
-      'useAuth must be used inside <AuthProvider>'
-    );
+    expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used inside <AuthProvider>');
     spy.mockRestore();
   });
 });

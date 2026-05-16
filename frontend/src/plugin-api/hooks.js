@@ -5,7 +5,7 @@ import registry from './registry';
 export function usePreviewer(file) {
   return useMemo(() => {
     if (!file) return null;
-    return registry.previewers.find(p => p.canHandle(file)) ?? null;
+    return registry.previewers.find((p) => p.canHandle(file)) ?? null;
   }, [file]);
 }
 
@@ -13,7 +13,7 @@ export function usePreviewer(file) {
 export function useFileActions(file) {
   return useMemo(() => {
     if (!file) return [];
-    return registry.fileActions.filter(a => a.canHandle(file));
+    return registry.fileActions.filter((a) => a.canHandle(file));
   }, [file]);
 }
 

@@ -51,10 +51,7 @@ describe('loadPlugins', () => {
     });
 
     // Mock dynamic import to return a module with register()
-    vi.stubGlobal(
-      '__vite_import_mock__',
-      async () => ({ register: registerSpy }),
-    );
+    vi.stubGlobal('__vite_import_mock__', async () => ({ register: registerSpy }));
 
     // We can't easily intercept dynamic import() in vitest without a plugin,
     // so we test the fetch path directly and confirm no errors thrown.
