@@ -6,7 +6,11 @@
         dev dev-backend dev-frontend \
         build build-frontend \
         docker-build docker-up docker-up-collabora docker-down docker-logs \
-        lint typecheck test clean
+        format format-backend format-frontend \
+        lint lint-backend lint-frontend \
+        typecheck \
+        test test-backend test-frontend \
+        clean
 
 PYTHON   := python3.14
 UV       := uv
@@ -78,31 +82,42 @@ docker-logs: ## Tail logs for all services
 
 # ── Code quality ──────────────────────────────────────────────────────────────
 
-format: ## Run formatters over the backend
+format: format-backend format-frontend ## Run all formatters (backend + frontend)
+
+format-backend: ## Format backend: ruff format + ruff check --fix
 	cd $(BACKEND) && $(UV) run ruff format
 	cd $(BACKEND) && $(UV) run ruff check --fix
 
-lint: ## Run ruff linter over the backend
+format-frontend: ## Format frontend: biome format + import sort
+	cd $(FRONTEND) && npm run format
+
+lint: lint-backend lint-frontend ## Run all linters (backend + frontend)
+
+lint-backend: ## Lint backend: ruff format --check + ruff check
 	cd $(BACKEND) && $(UV) run ruff format --check
 	cd $(BACKEND) && $(UV) run ruff check
+
+lint-frontend: ## Lint frontend: biome check (format + lint, no writes)
+	cd $(FRONTEND) && npm run lint
 
 typecheck: ## Run pyright type checker over the backend
 	cd $(BACKEND) && $(UV) run pyright .
 
 test: test-backend test-frontend ## Run all tests (backend + frontend)
 
-test-backend: ## Run pytest for the backend
+test-backend: ## Run pytest for the backend with coverage
 	cd $(BACKEND) && $(UV) run pytest
 	cd $(BACKEND) && $(UV) run coverage xml
 	cd $(BACKEND) && $(UV) run coverage html
 
-test-frontend: ## Run vitest for the frontend
-	cd $(FRONTEND) && npm run test
+test-frontend: ## Run vitest for the frontend with coverage
+	cd $(FRONTEND) && npm run test:coverage
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 
 clean: ## Remove build artefacts and caches
 	rm -rf $(FRONTEND)/dist
+	rm -rf $(FRONTEND)/.coverage
 	rm -rf $(BACKEND)/.venv
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true

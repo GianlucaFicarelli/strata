@@ -5,9 +5,9 @@
  * and passes through (no gate) when no providers are registered.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock AuthContext so we can control auth state precisely
 vi.mock('../../auth/AuthContext', () => {
@@ -20,8 +20,8 @@ vi.mock('../../auth/AuthContext', () => {
 });
 
 import { useAuth } from '../../auth/AuthContext';
-import LoginGate from '../../auth/LoginGate';
 import LoginForm from '../../auth/LoginForm';
+import LoginGate from '../../auth/LoginGate';
 
 // ── LoginGate ─────────────────────────────────────────────────────────────────
 
@@ -36,7 +36,11 @@ describe('LoginGate', () => {
     useAuth.mockReturnValue({ user: null, loading: true });
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
 
-    render(<LoginGate><div>{CHILD_TEXT}</div></LoginGate>);
+    render(
+      <LoginGate>
+        <div>{CHILD_TEXT}</div>
+      </LoginGate>,
+    );
 
     // Let the providers fetch settle so React can flush all state updates before
     // the test exits. The spinner must still be shown because loading:true (the
@@ -49,7 +53,11 @@ describe('LoginGate', () => {
     useAuth.mockReturnValue({ user: null, loading: false });
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
 
-    render(<LoginGate><div>{CHILD_TEXT}</div></LoginGate>);
+    render(
+      <LoginGate>
+        <div>{CHILD_TEXT}</div>
+      </LoginGate>,
+    );
     await waitFor(() => expect(screen.getByText(CHILD_TEXT)).toBeInTheDocument());
   });
 
@@ -57,10 +65,16 @@ describe('LoginGate', () => {
     useAuth.mockReturnValue({ user: null, loading: false });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => [{ id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' }],
+      json: async () => [
+        { id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' },
+      ],
     });
 
-    render(<LoginGate><div>{CHILD_TEXT}</div></LoginGate>);
+    render(
+      <LoginGate>
+        <div>{CHILD_TEXT}</div>
+      </LoginGate>,
+    );
     await waitFor(() => expect(screen.getByPlaceholderText('Username')).toBeInTheDocument());
     expect(screen.queryByText(CHILD_TEXT)).not.toBeInTheDocument();
   });
@@ -72,10 +86,16 @@ describe('LoginGate', () => {
     });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => [{ id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' }],
+      json: async () => [
+        { id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' },
+      ],
     });
 
-    render(<LoginGate><div>{CHILD_TEXT}</div></LoginGate>);
+    render(
+      <LoginGate>
+        <div>{CHILD_TEXT}</div>
+      </LoginGate>,
+    );
     await waitFor(() => expect(screen.getByText(CHILD_TEXT)).toBeInTheDocument());
   });
 });
@@ -132,11 +152,7 @@ describe('LoginForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith(
-        '/api/plugins/auth_jwt/login',
-        'alice',
-        'secret123',
-      );
+      expect(mockLogin).toHaveBeenCalledWith('/api/plugins/auth_jwt/login', 'alice', 'secret123');
     });
   });
 

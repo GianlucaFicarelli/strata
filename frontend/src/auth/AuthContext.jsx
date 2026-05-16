@@ -32,12 +32,16 @@ const TOKEN_KEY = 'strata_token';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null);
-  const [token, setToken]     = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [loading, setLoading] = useState(true);
 
   // ── Hydrate user from a stored token ──────────────────────────────────────
 
+  // Runs once on mount: verifies the token read from localStorage at init.
+  // token is intentionally omitted from deps — login() and logout() update
+  // user and token atomically; re-running on token change would be incorrect.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional
   useEffect(() => {
     if (!token) {
       setLoading(false);
@@ -46,11 +50,11 @@ export function AuthProvider({ children }) {
     fetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error('Token invalid');
         return res.json();
       })
-      .then(u => setUser(u))
+      .then((u) => setUser(u))
       .catch(() => {
         // Token is stale — clear it so the user sees the login form.
         localStorage.removeItem(TOKEN_KEY);
