@@ -8,7 +8,7 @@
     "test:coverage": "vitest run --coverage",
     "format": "biome format --write src/ vitest.config.js vite.config.js",
     "lint": "biome check src/ vitest.config.js vite.config.js",
-    "lint:fix": "biome check --write src/ vitest.config.js vite.config.js"
+    "lint:fix": "biome check --write --unsafe src/ vitest.config.js vite.config.js"
   },
   "dependencies": {
     "@ant-design/icons": "^6.2.3",

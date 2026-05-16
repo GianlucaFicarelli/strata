@@ -26,7 +26,7 @@ function authHeaders() {
 }
 
 function qs(params) {
-  return '?' + new URLSearchParams(params).toString();
+  return `?${new URLSearchParams(params).toString()}`;
 }
 
 export async function listBackends() {
