@@ -9,9 +9,9 @@
  * registered, a picker is shown so the user can choose.
  */
 
+import { FolderOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Form, Input, Select, Typography } from 'antd';
 import { useState } from 'react';
-import { Button, Card, Form, Input, Select, Typography, Alert } from 'antd';
-import { LockOutlined, UserOutlined, FolderOutlined } from '@ant-design/icons';
 import { useAuth } from './AuthContext';
 
 const { Title, Text } = Typography;

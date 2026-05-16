@@ -1,7 +1,7 @@
-import { Modal, Button, Space, Typography } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
-import { usePreviewer } from '../plugin-api/hooks';
+import { Button, Modal, Space, Typography } from 'antd';
 import { downloadUrl } from '../core-plugins/api';
+import { usePreviewer } from '../plugin-api/hooks';
 
 const { Text } = Typography;
 

@@ -5,16 +5,15 @@
  * is exercised properly.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-
-import registry from '../../plugin-api/registry';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  usePreviewer,
   useFileActions,
-  useSidebarItems,
   usePluginRoutes,
+  usePreviewer,
+  useSidebarItems,
 } from '../../plugin-api/hooks';
+import registry from '../../plugin-api/registry';
 
 const PNG_FILE = { name: 'photo.png', mime: 'image/png', is_dir: false };
 const PDF_FILE = { name: 'doc.pdf', mime: 'application/pdf', is_dir: false };

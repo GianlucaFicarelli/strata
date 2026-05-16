@@ -1,12 +1,12 @@
+import { ConfigProvider, Layout, Spin, theme } from 'antd';
 import { useEffect, useState } from 'react';
-import { Layout, ConfigProvider, theme, Spin } from 'antd';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { loadPlugins } from './plugin-api/registry';
-import { usePluginRoutes } from './plugin-api/hooks';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import LoginGate from './auth/LoginGate';
-import Sidebar from './shell/Sidebar';
+import { usePluginRoutes } from './plugin-api/hooks';
+import { loadPlugins } from './plugin-api/registry';
 import FileBrowser from './shell/FileBrowser';
+import Sidebar from './shell/Sidebar';
 import './App.css';
 
 const { Content, Sider } = Layout;

@@ -6,9 +6,9 @@
  * that empty/populated states display correctly.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the API module before importing FileBrowser
 vi.mock('../../core-plugins/api', () => ({
@@ -31,8 +31,8 @@ vi.mock('../../shell/FilePreview', () => ({
   default: ({ file }) => (file ? <div data-testid="file-preview">{file.name}</div> : null),
 }));
 
-import FileBrowser from '../../shell/FileBrowser';
 import { listBackends, listDir } from '../../core-plugins/api';
+import FileBrowser from '../../shell/FileBrowser';
 
 const BACKENDS = [
   { id: 'storage_local', name: 'Local Filesystem' },

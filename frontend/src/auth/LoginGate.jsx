@@ -16,8 +16,8 @@
  * plugin loaded) we skip the gate entirely and render children directly.
  */
 
-import { useEffect, useState } from 'react';
 import { Spin } from 'antd';
+import { useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import LoginForm from './LoginForm';
 

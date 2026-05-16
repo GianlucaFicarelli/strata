@@ -4,14 +4,14 @@
  * All tests mock global.fetch — no real network calls.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  deleteEntry,
+  downloadUrl,
   listBackends,
   listDir,
-  deleteEntry,
   makeDir,
   moveEntry,
-  downloadUrl,
   uploadFile,
 } from '../../core-plugins/api';
 

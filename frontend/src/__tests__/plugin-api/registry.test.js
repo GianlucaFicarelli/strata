@@ -5,7 +5,7 @@
  * loadPlugins() calls register() on each plugin module it fetches.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import registry, { loadPlugins } from '../../plugin-api/registry';
 
 describe('registry shape', () => {

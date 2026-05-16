@@ -1,14 +1,14 @@
-import { Avatar, Menu, Typography } from 'antd';
 import {
-  FolderOutlined,
   CloudOutlined,
+  FolderOutlined,
+  LogoutOutlined,
   SettingOutlined,
   UserOutlined,
-  LogoutOutlined,
 } from '@ant-design/icons';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useSidebarItems } from '../plugin-api/hooks';
+import { Avatar, Menu, Typography } from 'antd';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useSidebarItems } from '../plugin-api/hooks';
 
 const { Text } = Typography;
 

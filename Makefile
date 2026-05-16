@@ -90,6 +90,7 @@ format-backend: ## Format backend: ruff format + ruff check --fix
 
 format-frontend: ## Format frontend: biome format + import sort
 	cd $(FRONTEND) && npm run format
+	cd $(FRONTEND) && npm run lint:fix
 
 lint: lint-backend lint-frontend ## Run all linters (backend + frontend)
 
