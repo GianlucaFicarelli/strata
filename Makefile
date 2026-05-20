@@ -51,7 +51,7 @@ dev: ## Run backend and frontend dev servers in parallel (requires tmux or simil
 dev-backend: ## Run the FastAPI backend with hot-reload
 	cd $(BACKEND) && \
 		STRATA_LOCAL_ROOT=$${STRATA_LOCAL_ROOT:-$$HOME} \
-		.venv/bin/uvicorn strata.main:app --reload --host 0.0.0.0 --port 8000
+		$(UV) run uvicorn strata.main:app --reload --host 0.0.0.0 --port 8000
 
 dev-frontend: ## Run the Vite dev server (proxies /api → :8000)
 	cd $(FRONTEND) && npm run dev
