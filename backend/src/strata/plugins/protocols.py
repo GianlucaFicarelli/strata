@@ -68,9 +68,7 @@ class InstanceContext:
         Returns:
             String with all known placeholders substituted.
         """
-        return template.replace("{user_id}", self.user_id).replace(
-            "{username}", self.username
-        )
+        return template.replace("{user_id}", self.user_id).replace("{username}", self.username)
 
 
 @runtime_checkable

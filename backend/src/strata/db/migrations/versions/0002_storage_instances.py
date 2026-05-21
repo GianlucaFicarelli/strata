@@ -29,9 +29,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index(
-        "ix_core_storage_instances_plugin_id", "core_storage_instances", ["plugin_id"]
-    )
+    op.create_index("ix_core_storage_instances_plugin_id", "core_storage_instances", ["plugin_id"])
 
     op.create_table(
         "core_storage_user_configs",

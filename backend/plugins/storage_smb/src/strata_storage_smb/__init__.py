@@ -21,11 +21,10 @@ from typing import Annotated
 from pydantic import BaseModel, Field
 
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import InstanceContext, StorageBackend, StorageTemplate
+from strata.plugins.protocols import InstanceContext, StorageBackend
 from strata.plugins.registry import PluginRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
-
 
 # ── Config schema ─────────────────────────────────────────────────────────────
 

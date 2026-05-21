@@ -70,15 +70,12 @@ def decrypt_config(stored_config: dict[str, Any], schema: dict[str, Any]) -> dic
 
 
 def mask_config(stored_config: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
-    return {
-        k: (_MASKED if _is_secret(schema, k) and v else v)
-        for k, v in stored_config.items()
-    }
+    return {k: (_MASKED if _is_secret(schema, k) and v else v) for k, v in stored_config.items()}
 
 
 def is_instance_ready(
     instance: CoreStorageInstance,
-    user_config: "CoreStorageUserConfig | None",
+    user_config: CoreStorageUserConfig | None,
     template: StorageTemplate,
 ) -> bool:
     if not instance.is_enabled:
@@ -95,7 +92,7 @@ def is_instance_ready(
 
 def build_backend(
     instance: CoreStorageInstance,
-    user_config: "CoreStorageUserConfig | None",
+    user_config: CoreStorageUserConfig | None,
     template: StorageTemplate,
     context: InstanceContext,
 ) -> StorageBackend:
@@ -116,7 +113,7 @@ def build_backend(
     return template.create(validated, context)
 
 
-async def get_instance(session: AsyncSession, instance_id: str) -> "CoreStorageInstance | None":
+async def get_instance(session: AsyncSession, instance_id: str) -> CoreStorageInstance | None:
     return await session.get(CoreStorageInstance, instance_id)
 
 
@@ -154,9 +151,9 @@ async def update_instance(
     session: AsyncSession,
     instance: CoreStorageInstance,
     template: StorageTemplate,
-    instance_name: "str | None" = None,
-    raw_config: "dict[str, Any] | None" = None,
-    is_enabled: "bool | None" = None,
+    instance_name: str | None = None,
+    raw_config: dict[str, Any] | None = None,
+    is_enabled: bool | None = None,
 ) -> CoreStorageInstance:
     if instance_name is not None:
         instance.instance_name = instance_name
@@ -182,7 +179,7 @@ async def update_instance(
 
 async def get_user_config(
     session: AsyncSession, instance_id: str, user_id: str
-) -> "CoreStorageUserConfig | None":
+) -> CoreStorageUserConfig | None:
     result = await session.execute(
         select(CoreStorageUserConfig).where(
             CoreStorageUserConfig.instance_id == instance_id,
@@ -192,9 +189,7 @@ async def get_user_config(
     return result.scalar_one_or_none()
 
 
-async def list_user_configs(
-    session: AsyncSession, user_id: str
-) -> list[CoreStorageUserConfig]:
+async def list_user_configs(session: AsyncSession, user_id: str) -> list[CoreStorageUserConfig]:
     result = await session.execute(
         select(CoreStorageUserConfig).where(CoreStorageUserConfig.user_id == user_id)
     )
@@ -206,8 +201,8 @@ async def upsert_user_config(
     instance: CoreStorageInstance,
     user_id: str,
     template: StorageTemplate,
-    is_enabled: "bool | None" = None,
-    raw_user_config: "dict[str, Any] | None" = None,
+    is_enabled: bool | None = None,
+    raw_user_config: dict[str, Any] | None = None,
 ) -> CoreStorageUserConfig:
     user_cfg = await get_user_config(session, instance.id, user_id)
     schema = template.config_schema.model_json_schema()
@@ -250,7 +245,7 @@ async def resolve_backend_for_user(
     user_id: str,
     username: str,
     template_registry: StorageTemplateRegistry,
-) -> "StorageBackend | None":
+) -> StorageBackend | None:
     instance = await get_instance(session, instance_id)
     if instance is None or not instance.is_enabled:
         return None
@@ -308,7 +303,7 @@ def instance_to_response(
 
 def user_config_to_response(
     instance: CoreStorageInstance,
-    user_cfg: "CoreStorageUserConfig | None",
+    user_cfg: CoreStorageUserConfig | None,
     template: StorageTemplate,
 ) -> dict[str, Any]:
     schema = template.config_schema.model_json_schema()

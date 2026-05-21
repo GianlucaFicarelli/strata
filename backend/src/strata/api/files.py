@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from strata.dependencies.auth import OptionalCurrentUserDep
@@ -113,11 +113,10 @@ async def move_path(
     logic as ``StorageBackendDep`` (static registry first, then instance lookup).
     """
     # Static registry first
-    if storage_registry._backends.get(req.backend):  # noqa: SLF001
+    if storage_registry._backends.get(req.backend):
         backend = storage_registry.get(backend_id=req.backend)
     else:
         if current_user is None:
-            from fastapi import HTTPException, status
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required to access storage instances",
@@ -130,7 +129,6 @@ async def move_path(
             template_registry=template_registry,
         )
         if backend is None:
-            from fastapi import HTTPException
             raise HTTPException(
                 status_code=400,
                 detail=f"Backend {req.backend!r} not found or not available for this user",

@@ -69,7 +69,9 @@ async def admin_user(db_session: AsyncSession) -> CoreUser:
 # ── AuthUser helpers ──────────────────────────────────────────────────────────
 
 
-def make_auth_user(core_user: CoreUser, *, username: str = "alice", is_admin: bool = False) -> AuthUser:
+def make_auth_user(
+    core_user: CoreUser, *, username: str = "alice", is_admin: bool = False
+) -> AuthUser:
     return AuthUser(id=core_user.id, username=username, is_admin=is_admin)
 
 

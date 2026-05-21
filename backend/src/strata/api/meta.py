@@ -34,8 +34,7 @@ async def list_backends(
       required user_editable fields filled).  Requires authentication.
     """
     result: list[StorageMeta] = [
-        StorageMeta(id=b.describe().id, name=b.describe().name)
-        for b in storage_registry.all()
+        StorageMeta(id=b.describe().id, name=b.describe().name) for b in storage_registry.all()
     ]
 
     if current_user is not None:

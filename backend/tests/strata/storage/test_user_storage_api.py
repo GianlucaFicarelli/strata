@@ -16,7 +16,6 @@ from strata.main import app
 from strata.plugins.protocols import InstanceContext, StorageBackend
 from strata.plugins.registry import StorageTemplateRegistry
 from strata.storage import service
-
 from tests.conftest import make_auth_user
 
 

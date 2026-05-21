@@ -15,8 +15,6 @@ from strata.dependencies.registry import storage_template_registry_dep
 from strata.main import app
 from strata.plugins.protocols import InstanceContext, StorageBackend
 from strata.plugins.registry import StorageTemplateRegistry
-from strata.storage import service
-
 from tests.conftest import make_admin_auth_user, make_auth_user
 
 
@@ -48,7 +46,9 @@ def template_registry() -> StorageTemplateRegistry:
 
 def _setup_overrides(core_user, db_session, template_registry, monkeypatch, *, is_admin):
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
-    user = make_admin_auth_user(core_user) if is_admin else make_auth_user(core_user, is_admin=False)
+    user = (
+        make_admin_auth_user(core_user) if is_admin else make_auth_user(core_user, is_admin=False)
+    )
     app.dependency_overrides[require_current_user_dep] = lambda: user
     app.dependency_overrides[storage_template_registry_dep] = lambda: template_registry
     app.dependency_overrides[db_session_dep] = lambda: db_session
@@ -124,7 +124,7 @@ async def test_create_instance(http_admin: AsyncClient):
     data = resp.json()
     assert data["instance_name"] == "My Storage"
     assert data["plugin_id"] == "admin_test"
-    assert data["config"]["token"] == "********"       # secret → masked
+    assert data["config"]["token"] == "********"  # secret → masked
     assert data["config"]["root"] == "/data/{username}"  # template, not secret
 
 
@@ -187,7 +187,11 @@ async def test_update_secret_with_masked_preserves_value(http_admin: AsyncClient
     """Sending '********' for a secret field on update keeps the original."""
     cr = await http_admin.post(
         "/api/admin/storage/instances",
-        json={"plugin_id": "admin_test", "instance_name": "S", "config": {"root": "/r", "token": "real_tok"}},
+        json={
+            "plugin_id": "admin_test",
+            "instance_name": "S",
+            "config": {"root": "/r", "token": "real_tok"},
+        },
     )
     inst_id = cr.json()["id"]
     resp = await http_admin.put(
@@ -223,11 +227,19 @@ async def test_delete_not_found(http_admin: AsyncClient):
 async def test_list_instances(http_admin: AsyncClient):
     await http_admin.post(
         "/api/admin/storage/instances",
-        json={"plugin_id": "admin_test", "instance_name": "A", "config": {"root": "/a", "token": ""}},
+        json={
+            "plugin_id": "admin_test",
+            "instance_name": "A",
+            "config": {"root": "/a", "token": ""},
+        },
     )
     await http_admin.post(
         "/api/admin/storage/instances",
-        json={"plugin_id": "admin_test", "instance_name": "B", "config": {"root": "/b", "token": ""}},
+        json={
+            "plugin_id": "admin_test",
+            "instance_name": "B",
+            "config": {"root": "/b", "token": ""},
+        },
     )
     resp = await http_admin.get("/api/admin/storage/instances")
     assert resp.status_code == 200

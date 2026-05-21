@@ -78,6 +78,9 @@ ignore = ["PLR2004"]
     "SLF001", # private member access
 ]
 
+[tool.ruff.lint.pylint]
+max-args = 10
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 

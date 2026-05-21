@@ -21,8 +21,6 @@ from strata.plugins.protocols import (
 from strata.schemas.auth import AuthUser
 from strata.schemas.search import SearchResult
 
-
-
 L = logging.getLogger(__name__)
 
 

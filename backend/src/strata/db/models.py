@@ -27,7 +27,7 @@ class CoreUser(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=create_uuid, index=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
-    storage_user_configs: Mapped[list["CoreStorageUserConfig"]] = relationship(
+    storage_user_configs: Mapped[list[CoreStorageUserConfig]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -66,7 +66,7 @@ class CoreStorageInstance(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
-    user_configs: Mapped[list["CoreStorageUserConfig"]] = relationship(
+    user_configs: Mapped[list[CoreStorageUserConfig]] = relationship(
         back_populates="instance", cascade="all, delete-orphan"
     )
 

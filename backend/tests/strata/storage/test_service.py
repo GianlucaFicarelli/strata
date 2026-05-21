@@ -1,19 +1,19 @@
 """Unit + integration tests for strata.storage.service."""
 
+import base64
 import json
 from typing import Any
-from unittest.mock import MagicMock
 
-import pytest
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from strata.crypto import encrypt_field
 from strata.db.models import CoreStorageInstance, CoreStorageUserConfig, CoreUser
-from strata.plugins.protocols import InstanceContext, StorageBackend, StorageTemplate
+from strata.plugins.protocols import InstanceContext, StorageBackend
 from strata.plugins.registry import StorageTemplateRegistry
+from strata.schemas.common import StorageMeta
 from strata.storage import service
 from strata.utils import create_uuid, utcnow
-
 
 # ── Minimal test schemas and templates ───────────────────────────────────────
 
@@ -41,6 +41,7 @@ class _FakeBackend:
     async def read(self, path: str):
         async def _g():
             yield b""
+
         return _g()
 
     async def write(self, path: str, stream: Any) -> None:
@@ -56,7 +57,6 @@ class _FakeBackend:
         pass
 
     def describe(self):
-        from strata.schemas.common import StorageMeta
         return StorageMeta(id=self.id, name=self.name)
 
 
@@ -113,7 +113,6 @@ def test_required_user_editable_fields():
 
 
 def _test_key() -> str:
-    import base64
     return base64.urlsafe_b64encode(b"A" * 32).decode()
 
 
@@ -209,7 +208,9 @@ def test_is_instance_ready_all_required_user_fields_present():
     inst = _make_instance(plugin_id="secret_tmpl")
     tmpl = _SecretTemplate()
     user_cfg = _make_user_config(
-        inst.id, "uid", is_enabled=True,
+        inst.id,
+        "uid",
+        is_enabled=True,
         cfg={"password": "enc_val", "username": "bob"},
     )
     assert service.is_instance_ready(inst, user_cfg, tmpl)
@@ -236,7 +237,7 @@ def test_build_backend_template_expansion(monkeypatch):
 
 def test_build_backend_user_editable_overrides_admin(monkeypatch):
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
-    from strata.crypto import encrypt_field
+
     key = _test_key()
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", key)
 
@@ -245,7 +246,9 @@ def test_build_backend_user_editable_overrides_admin(monkeypatch):
         display_name = "UT"
         description = ""
         config_schema = _SecretConfig
-        received: list[Any] = []
+
+        def __init__(self) -> None:
+            self.received: list[Any] = []
 
         def create(self, config: BaseModel, context: InstanceContext) -> StorageBackend:
             self.received.append(config)
@@ -263,7 +266,9 @@ def test_build_backend_user_editable_overrides_admin(monkeypatch):
     )
     enc_pass = encrypt_field("mypass", key)
     user_cfg = _make_user_config(
-        inst.id, "uid", is_enabled=True,
+        inst.id,
+        "uid",
+        is_enabled=True,
         cfg={"username": "alice", "password": enc_pass},
     )
     context = InstanceContext(user_id="uid", username="alice")
@@ -307,9 +312,7 @@ async def test_list_instances(db_session: AsyncSession, monkeypatch):
 async def test_upsert_user_config(db_session: AsyncSession, core_user: CoreUser, monkeypatch):
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
     tmpl = _SimpleTemplate()
-    inst = await service.create_instance(
-        db_session, "simple", "My Files", {"root": "/data"}, tmpl
-    )
+    inst = await service.create_instance(db_session, "simple", "My Files", {"root": "/data"}, tmpl)
 
     # First call creates the row
     user_cfg = await service.upsert_user_config(
@@ -330,27 +333,19 @@ async def test_resolve_backend_not_ready(
 ):
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
     tmpl = _SimpleTemplate()
-    inst = await service.create_instance(
-        db_session, "simple", "Files", {"root": "/data"}, tmpl
-    )
+    inst = await service.create_instance(db_session, "simple", "Files", {"root": "/data"}, tmpl)
     reg = StorageTemplateRegistry()
     reg.add(tmpl)
 
     # No user config → not ready
-    result = await service.resolve_backend_for_user(
-        db_session, inst.id, core_user.id, "alice", reg
-    )
+    result = await service.resolve_backend_for_user(db_session, inst.id, core_user.id, "alice", reg)
     assert result is None
 
 
-async def test_resolve_backend_ready(
-    db_session: AsyncSession, core_user: CoreUser, monkeypatch
-):
+async def test_resolve_backend_ready(db_session: AsyncSession, core_user: CoreUser, monkeypatch):
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
     tmpl = _SimpleTemplate()
-    inst = await service.create_instance(
-        db_session, "simple", "Files", {"root": "/data"}, tmpl
-    )
+    inst = await service.create_instance(db_session, "simple", "Files", {"root": "/data"}, tmpl)
     await service.upsert_user_config(db_session, inst, core_user.id, tmpl, is_enabled=True)
 
     reg = StorageTemplateRegistry()
@@ -364,9 +359,7 @@ async def test_resolve_backend_ready(
 async def test_update_instance(db_session: AsyncSession, monkeypatch):
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
     tmpl = _SimpleTemplate()
-    inst = await service.create_instance(
-        db_session, "simple", "Old Name", {"root": "/old"}, tmpl
-    )
+    inst = await service.create_instance(db_session, "simple", "Old Name", {"root": "/old"}, tmpl)
     updated = await service.update_instance(
         db_session, inst, tmpl, instance_name="New Name", is_enabled=False
     )

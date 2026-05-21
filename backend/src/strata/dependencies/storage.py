@@ -35,7 +35,7 @@ async def storage_backend_dep(
     Tries the static registry first, then instance lookup.
     """
     # 1. Static registry (plugin singletons)
-    if storage_registry._backends.get(backend):  # noqa: SLF001
+    if storage_registry._backends.get(backend):
         return storage_registry.get(backend_id=backend)
 
     # 2. Instance-backed lookup requires authentication

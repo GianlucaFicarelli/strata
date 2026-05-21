@@ -33,8 +33,7 @@ async def list_user_instances(
     """
     instances = await service.list_instances(session)
     user_cfgs = {
-        uc.instance_id: uc
-        for uc in await service.list_user_configs(session, current_user.id)
+        uc.instance_id: uc for uc in await service.list_user_configs(session, current_user.id)
     }
     result: list[UserStorageConfigResponse] = []
     for inst in instances:
@@ -45,9 +44,7 @@ async def list_user_instances(
             continue
         user_cfg = user_cfgs.get(inst.id)
         result.append(
-            UserStorageConfigResponse(
-                **service.user_config_to_response(inst, user_cfg, tmpl)
-            )
+            UserStorageConfigResponse(**service.user_config_to_response(inst, user_cfg, tmpl))
         )
     return result
 
@@ -67,9 +64,7 @@ async def get_user_instance_config(
     if tmpl is None:
         raise HTTPException(status_code=404, detail="Template not found")
     user_cfg = await service.get_user_config(session, instance_id, current_user.id)
-    return UserStorageConfigResponse(
-        **service.user_config_to_response(instance, user_cfg, tmpl)
-    )
+    return UserStorageConfigResponse(**service.user_config_to_response(instance, user_cfg, tmpl))
 
 
 @router.patch("/instances/{instance_id}/me", status_code=status.HTTP_200_OK)
@@ -101,6 +96,4 @@ async def update_user_instance_config(
         is_enabled=body.is_enabled,
         raw_user_config=body.config,
     )
-    return UserStorageConfigResponse(
-        **service.user_config_to_response(instance, user_cfg, tmpl)
-    )
+    return UserStorageConfigResponse(**service.user_config_to_response(instance, user_cfg, tmpl))

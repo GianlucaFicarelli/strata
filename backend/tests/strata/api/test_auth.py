@@ -19,9 +19,11 @@ from strata_auth_jwt.utils import create_access_token, hash_password
 from strata.api.auth import router as auth_router
 from strata.db.models import CoreUser
 from strata.db.session import session_scope
-from strata.dependencies.registry import auth_registry_dep, storage_registry_dep, storage_template_registry_dep
-from strata.main import app as main_app
-from strata.plugins.registry import AuthRegistry, StorageRegistry, StorageTemplateRegistry
+from strata.dependencies.auth import optional_current_user_dep
+from strata.dependencies.registry import (
+    auth_registry_dep,
+)
+from strata.plugins.registry import AuthRegistry
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -124,14 +126,13 @@ async def test_optional_dep_returns_none_when_no_providers():
     """With an empty AuthRegistry, the dep should return None (not raise)."""
     # Test via a minimal FastAPI app that wires the optional dep directly,
     # avoiding the full main_app lifespan and storage dependency graph.
-    from fastapi import FastAPI
-    from strata.dependencies.auth import optional_current_user_dep
 
     mini = FastAPI()
     mini.dependency_overrides[auth_registry_dep] = _make_auth_registry
+    current_user = __import__("fastapi").Depends(optional_current_user_dep)
 
     @mini.get("/probe")
-    async def probe(user=__import__('fastapi').Depends(optional_current_user_dep)):
+    async def probe(user=current_user):
         return {"user": user}
 
     async with AsyncClient(transport=ASGITransport(app=mini), base_url="http://test") as c:

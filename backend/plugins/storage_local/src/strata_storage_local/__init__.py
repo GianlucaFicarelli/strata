@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from strata.config import settings
 from strata.plugins.base import BackendPlugin
-from strata.plugins.protocols import InstanceContext, StorageBackend, StorageTemplate
+from strata.plugins.protocols import InstanceContext, StorageBackend
 from strata.plugins.registry import PluginRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
@@ -100,9 +100,7 @@ class _LocalBackend:
         if not target.is_dir():
             raise HTTPException(status_code=400, detail="Not a directory")
         entries: list[FileEntry] = []
-        for child in sorted(
-            target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())
-        ):
+        for child in sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
             try:
                 entries.append(_to_entry(child, self._root))
             except PermissionError:

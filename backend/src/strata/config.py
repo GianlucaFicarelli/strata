@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
 
     # Required: 32-byte URL-safe base64 key for AES-256-GCM field encryption.
-    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Generate with:
+    # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     # Must be set if any StorageTemplate declares secret fields.
     ENCRYPTION_KEY: str = ""
 
@@ -41,7 +42,7 @@ class Settings(BaseSettings):
     ]
 
     @model_validator(mode="after")
-    def _require_encryption_key(self) -> "Settings":
+    def _require_encryption_key(self) -> Settings:
         # Validated lazily at startup once templates are registered.
         # See strata.main for the deferred check.
         return self

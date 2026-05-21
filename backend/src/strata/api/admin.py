@@ -12,7 +12,7 @@ PUT  /api/admin/storage/instances/{id}    — update an instance
 DELETE /api/admin/storage/instances/{id} — delete an instance
 """
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
