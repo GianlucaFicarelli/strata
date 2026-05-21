@@ -44,7 +44,7 @@ class BackendPlugin:
             version = "0.1.0"
             description = "Does something useful."
 
-            def register(self, registry: PluginRegistry) -> None:
+            def register(self, registry: "PluginRegistry") -> None:
                 registry.storage.add(MyStorageBackend())
                 registry.routes.add(MyRouteProvider())
 
@@ -60,7 +60,7 @@ class BackendPlugin:
     version: str = "0.1.0"
     description: str = ""
 
-    def register(self, registry: PluginRegistry) -> None:
+    def register(self, registry: "PluginRegistry") -> None:
         """Contribute this plugin's capabilities to the application.
 
         Called once at startup, after the plugin is discovered and before

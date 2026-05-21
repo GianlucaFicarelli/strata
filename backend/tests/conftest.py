@@ -1,21 +1,10 @@
-"""Shared pytest fixtures for the Strata test suite.
-
-All database tests use an in-memory SQLite database that is created fresh
-for every test function.  The FastAPI integration tests use httpx's
-``ASGITransport`` so no real server is started.
-
-Fixture hierarchy
------------------
-engine → session_factory → db_session   (DB fixtures, function-scoped)
-test_app                                 (FastAPI app wired to the in-memory DB)
-client                                   (async httpx client against test_app)
-"""
+"""Shared pytest fixtures for the Strata test suite."""
 
 from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
-import strata_auth_jwt.models  # Import auth_jwt models for registration on Base # noqa: F401
+import strata_auth_jwt.models  # registers auth_jwt ORM models on shared Base  # noqa: F401
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -29,6 +18,7 @@ from strata.db.models import CoreUser
 from strata.db.session import session_scope
 from strata.main import app
 from strata.plugins.registry import PluginRegistry
+from strata.schemas.auth import AuthUser
 
 # ── Database fixtures ─────────────────────────────────────────────────────────
 
@@ -67,16 +57,32 @@ async def core_user(db_session: AsyncSession) -> CoreUser:
     return user
 
 
+@pytest_asyncio.fixture
+async def admin_user(db_session: AsyncSession) -> CoreUser:
+    """A persisted CoreUser designated as admin (for auth override use)."""
+    user = CoreUser()
+    db_session.add(user)
+    await db_session.flush()
+    return user
+
+
+# ── AuthUser helpers ──────────────────────────────────────────────────────────
+
+
+def make_auth_user(core_user: CoreUser, *, username: str = "alice", is_admin: bool = False) -> AuthUser:
+    return AuthUser(id=core_user.id, username=username, is_admin=is_admin)
+
+
+def make_admin_auth_user(core_user: CoreUser, *, username: str = "admin") -> AuthUser:
+    return make_auth_user(core_user, username=username, is_admin=True)
+
+
 # ── FastAPI / httpx fixtures ──────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient]:
-    """Async HTTP client wired directly to the FastAPI ASGI app.
-
-    The app's full lifespan (including plugin loading and DB migrations)
-    runs on entry.  Each test gets a fresh lifespan context.
-    """
+    """Async HTTP client wired directly to the FastAPI ASGI app."""
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",

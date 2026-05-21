@@ -10,11 +10,17 @@ from typing import Any
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from strata.dependencies.registry import auth_registry_dep, storage_registry_dep
+from strata.dependencies.db import db_session_dep
+from strata.dependencies.registry import (
+    auth_registry_dep,
+    storage_registry_dep,
+    storage_template_registry_dep,
+)
 from strata.main import app
 from strata.plugins.protocols import StorageBackend
-from strata.plugins.registry import AuthRegistry, StorageRegistry
+from strata.plugins.registry import AuthRegistry, StorageRegistry, StorageTemplateRegistry
 from strata.schemas.files import FileEntry
 
 # ── In-memory stub backend ────────────────────────────────────────────────────
@@ -33,7 +39,6 @@ class _MemoryBackend:
     async def list(self, path: str) -> list[FileEntry]:
         if path not in self._dirs:
             raise HTTPException(status_code=404, detail="Path not found")
-
         entries: list[FileEntry] = []
         for d in sorted(self._dirs):
             if d in ("/", path):
@@ -57,7 +62,6 @@ class _MemoryBackend:
     async def read(self, path: str) -> AsyncIterator[bytes]:
         if path not in self._files:
             raise HTTPException(status_code=404, detail="File not found")
-
         data = self._files[path]
 
         async def _gen() -> AsyncIterator[bytes]:
@@ -106,21 +110,32 @@ def mem_backend() -> _MemoryBackend:
 
 
 @pytest.fixture
-def override_storage(mem_backend: _MemoryBackend):
-    """Override the storage and auth registry deps for test isolation.
+def override_storage(mem_backend: _MemoryBackend, db_session: AsyncSession):
+    """Override storage, template, auth and db deps for test isolation.
 
-    Storage → in-memory backend stub.
-    Auth → empty registry (no providers → OptionalCurrentUserDep returns None).
+    - Storage registry → single in-memory backend.
+    - Template registry → empty (no admin-created instances).
+    - Auth registry → empty (no providers → OptionalCurrentUserDep returns None).
+    - DB session → shared in-memory test session.
+
+    With an empty template registry and no authenticated user, any backend id
+    not found in the static registry will cause a 401 (auth required for
+    instance lookup), which is the correct runtime behaviour.
     """
     storage_reg = StorageRegistry()
     storage_reg.add(mem_backend)
-    app.dependency_overrides[storage_registry_dep] = lambda: storage_reg
-    # Empty auth registry: no providers loaded, so all requests are anonymous.
+    empty_template_reg = StorageTemplateRegistry()
     empty_auth = AuthRegistry()
+
+    app.dependency_overrides[storage_registry_dep] = lambda: storage_reg
+    app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
     app.dependency_overrides[auth_registry_dep] = lambda: empty_auth
+    app.dependency_overrides[db_session_dep] = lambda: db_session
     yield
     app.dependency_overrides.pop(storage_registry_dep, None)
+    app.dependency_overrides.pop(storage_template_registry_dep, None)
     app.dependency_overrides.pop(auth_registry_dep, None)
+    app.dependency_overrides.pop(db_session_dep, None)
 
 
 @pytest.fixture
@@ -185,13 +200,14 @@ async def test_move_file(mem_backend: _MemoryBackend, http: AsyncClient):
     assert "/old.txt" not in mem_backend._files
 
 
-async def test_list_unknown_backend_returns_400(override_storage):
+async def test_list_unknown_backend_unauthenticated_returns_401(override_storage):
+    """An unknown backend id with no auth token triggers 401 (instance lookup needs user)."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get(
             "/api/files/list",
             params={"path": "/", "backend": "nonexistent"},
         )
-    assert resp.status_code == 400
+    assert resp.status_code == 401
 
 
 async def test_download_missing_file_returns_404(mem_backend: _MemoryBackend, http: AsyncClient):

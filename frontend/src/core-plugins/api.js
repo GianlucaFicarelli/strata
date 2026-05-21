@@ -1,16 +1,8 @@
 /**
- * Core file-API fetch wrappers.
+ * Core API fetch wrappers.
  *
- * getToken()
- * ----------
- * All requests read the current bearer token from localStorage via
- * getToken().  This is the same key AuthContext writes to, so the token
- * is always up-to-date without any prop-drilling or context dependency in
- * this module.
- *
- * If no token is present the Authorization header is simply omitted, which
- * is correct for deployments without an auth plugin (OptionalCurrentUserDep
- * returns null on the backend and the request succeeds).
+ * All requests inject the bearer token from localStorage when present.
+ * Secret fields are sent as "********" to preserve existing values when unchanged.
  */
 
 const BASE = '/api/files';
@@ -25,9 +17,15 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function jsonHeaders() {
+  return { 'Content-Type': 'application/json', ...authHeaders() };
+}
+
 function qs(params) {
   return `?${new URLSearchParams(params).toString()}`;
 }
+
+// ── File API ──────────────────────────────────────────────────────────────────
 
 export async function listBackends() {
   const res = await fetch('/api/backends', { headers: authHeaders() });
@@ -36,9 +34,7 @@ export async function listBackends() {
 }
 
 export async function listDir(path = '/', backend = 'storage_local') {
-  const res = await fetch(`${BASE}/list${qs({ path, backend })}`, {
-    headers: authHeaders(),
-  });
+  const res = await fetch(`${BASE}/list${qs({ path, backend })}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -64,7 +60,7 @@ export async function makeDir(path, backend = 'storage_local') {
 export async function moveEntry(src, dst, backend = 'storage_local') {
   const res = await fetch(`${BASE}/move`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: jsonHeaders(),
     body: JSON.stringify({ src, dst, backend }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -72,8 +68,6 @@ export async function moveEntry(src, dst, backend = 'storage_local') {
 }
 
 export function downloadUrl(path, backend = 'storage_local') {
-  // Download URLs include the token as a query param since we can't set
-  // headers on window.open() / anchor clicks.
   const token = getToken();
   const params = { path, backend };
   if (token) params.token = token;
@@ -87,6 +81,72 @@ export async function uploadFile(path, file, backend = 'storage_local') {
     method: 'POST',
     headers: authHeaders(),
     body: form,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Admin storage API ─────────────────────────────────────────────────────────
+
+export async function listStorageTemplates() {
+  const res = await fetch('/api/admin/storage/templates', { headers: authHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function listAdminInstances() {
+  const res = await fetch('/api/admin/storage/instances', { headers: authHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createAdminInstance(data) {
+  const res = await fetch('/api/admin/storage/instances', {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateAdminInstance(id, data) {
+  const res = await fetch(`/api/admin/storage/instances/${id}`, {
+    method: 'PUT',
+    headers: jsonHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function deleteAdminInstance(id) {
+  const res = await fetch(`/api/admin/storage/instances/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// ── User self-service storage API ────────────────────────────────────────────
+
+export async function listUserInstances() {
+  const res = await fetch('/api/storage/instances', { headers: authHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getUserInstanceConfig(instanceId) {
+  const res = await fetch(`/api/storage/instances/${instanceId}/me`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateUserInstanceConfig(instanceId, data) {
+  const res = await fetch(`/api/storage/instances/${instanceId}/me`, {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

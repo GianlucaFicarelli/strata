@@ -1,12 +1,15 @@
 import { ConfigProvider, Layout, Spin, theme } from 'antd';
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import AdminLayout from './admin/AdminLayout';
+import AdminStoragePage from './admin/AdminStoragePage';
 import { AuthProvider } from './auth/AuthContext';
 import LoginGate from './auth/LoginGate';
 import { usePluginRoutes } from './plugin-api/hooks';
 import { loadPlugins } from './plugin-api/registry';
 import FileBrowser from './shell/FileBrowser';
 import Sidebar from './shell/Sidebar';
+import UserStoragePage from './shell/UserStoragePage';
 import './App.css';
 
 const { Content, Sider } = Layout;
@@ -15,10 +18,22 @@ function AppRoutes() {
   const pluginRoutes = usePluginRoutes();
   return (
     <Routes>
-      <Route path="*" element={<FileBrowser />} />
+      <Route path="/" element={<FileBrowser />} />
+      <Route path="/settings/storage" element={<UserStoragePage />} />
+      <Route
+        path="/admin/*"
+        element={
+          <AdminLayout>
+            <Routes>
+              <Route path="storage" element={<AdminStoragePage />} />
+            </Routes>
+          </AdminLayout>
+        }
+      />
       {pluginRoutes.map((r) => (
         <Route key={r.id} path={r.path} element={<r.component />} />
       ))}
+      <Route path="*" element={<FileBrowser />} />
     </Routes>
   );
 }
@@ -53,7 +68,7 @@ function AppShell() {
                 height: '100vh',
               }}
             >
-              <Spin size="large" description="Loading plugins…" />
+              <Spin size="large" />
             </div>
           )}
         </Content>
@@ -66,10 +81,6 @@ export default function App() {
   return (
     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
       <BrowserRouter>
-        {/*
-          AuthProvider must wrap LoginGate so LoginGate can read loading state.
-          LoginGate must wrap AppShell so the shell only renders when authed.
-        */}
         <AuthProvider>
           <LoginGate>
             <AppShell />

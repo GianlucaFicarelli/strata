@@ -236,8 +236,13 @@ export default function FileBrowser() {
           value={activeBackend}
           onChange={handleBackendChange}
           size="small"
-          style={{ minWidth: 180 }}
-          options={backends.map((b) => ({ value: b.id, label: b.name }))}
+          style={{ minWidth: 200 }}
+          options={backends.map((b) => ({
+            value: b.id,
+            label: b.plugin_id
+              ? `${b.name} (${b.plugin_id})`
+              : b.name,
+          }))}
         />
       </div>
 

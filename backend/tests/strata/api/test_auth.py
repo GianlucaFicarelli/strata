@@ -19,9 +19,9 @@ from strata_auth_jwt.utils import create_access_token, hash_password
 from strata.api.auth import router as auth_router
 from strata.db.models import CoreUser
 from strata.db.session import session_scope
-from strata.dependencies.registry import auth_registry_dep, storage_registry_dep
+from strata.dependencies.registry import auth_registry_dep, storage_registry_dep, storage_template_registry_dep
 from strata.main import app as main_app
-from strata.plugins.registry import AuthRegistry, StorageRegistry
+from strata.plugins.registry import AuthRegistry, StorageRegistry, StorageTemplateRegistry
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -122,20 +122,23 @@ async def test_me_with_invalid_token_returns_401(
 
 async def test_optional_dep_returns_none_when_no_providers():
     """With an empty AuthRegistry, the dep should return None (not raise)."""
+    # Test via a minimal FastAPI app that wires the optional dep directly,
+    # avoiding the full main_app lifespan and storage dependency graph.
+    from fastapi import FastAPI
+    from strata.dependencies.auth import optional_current_user_dep
 
-    main_app.dependency_overrides[auth_registry_dep] = _make_auth_registry
+    mini = FastAPI()
+    mini.dependency_overrides[auth_registry_dep] = _make_auth_registry
 
-    async with AsyncClient(transport=ASGITransport(app=main_app), base_url="http://test") as c:
-        # /api/auth/providers uses auth_registry but not the optional dep;
-        # use a files endpoint which does use OptionalCurrentUserDep
+    @mini.get("/probe")
+    async def probe(user=__import__('fastapi').Depends(optional_current_user_dep)):
+        return {"user": user}
 
-        main_app.dependency_overrides[storage_registry_dep] = StorageRegistry
-        resp = await c.get("/api/files/list", params={"path": "/", "backend": "nonexistent"})
-    # 400 (unknown backend) proves the dep resolved (didn't 401)
-    assert resp.status_code == 400
-
-    main_app.dependency_overrides.pop(auth_registry_dep, None)
-    main_app.dependency_overrides.pop(storage_registry_dep, None)
+    async with AsyncClient(transport=ASGITransport(app=mini), base_url="http://test") as c:
+        resp = await c.get("/probe")
+    # No token + no providers → user is None, endpoint returns 200
+    assert resp.status_code == 200
+    assert resp.json()["user"] is None
 
 
 # ── AuthRegistry.verify_token ─────────────────────────────────────────────────

@@ -13,7 +13,9 @@ class PluginMeta(BaseModel):
 
 
 class StorageMeta(BaseModel):
-    """Storage metadata."""
+    """Storage backend metadata returned by GET /api/backends."""
 
     id: str
     name: str
+    plugin_id: str | None = None
+    instance_id: str | None = None

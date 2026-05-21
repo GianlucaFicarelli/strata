@@ -1,8 +1,10 @@
 import {
   CloudOutlined,
   FolderOutlined,
+  HddOutlined,
   LogoutOutlined,
   SettingOutlined,
+  ToolOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { Avatar, Menu, Typography } from 'antd';
@@ -70,8 +72,24 @@ export default function Sidebar() {
   const coreItems = [
     { key: '/', label: 'Files', icon: <FolderOutlined /> },
     { key: '/cloud', label: 'Cloud', icon: <CloudOutlined />, disabled: true },
+    { key: '/settings/storage', label: 'My Storage', icon: <HddOutlined /> },
     { key: '/settings', label: 'Settings', icon: <SettingOutlined />, disabled: true },
   ];
+
+  // Admin section — only visible to admin users
+  const adminItems = user?.is_admin
+    ? [
+        { type: 'divider' },
+        {
+          key: 'admin-group',
+          label: 'Admin',
+          type: 'group',
+          children: [
+            { key: '/admin/storage', label: 'Storage Instances', icon: <ToolOutlined /> },
+          ],
+        },
+      ]
+    : [];
 
   const pluginMenuItems = pluginItems.map((p) => ({
     key: p.path || `/_plugin/${p.id}`,
@@ -82,6 +100,7 @@ export default function Sidebar() {
   const allItems = [
     ...coreItems,
     ...(pluginMenuItems.length > 0 ? [{ type: 'divider' }, ...pluginMenuItems] : []),
+    ...adminItems,
   ];
 
   return (
@@ -95,7 +114,6 @@ export default function Sidebar() {
         items={allItems}
         style={{ background: 'transparent', borderRight: 'none' }}
       />
-      {/* Only render the user footer when authenticated */}
       {user && <UserFooter user={user} onLogout={logout} />}
     </div>
   );

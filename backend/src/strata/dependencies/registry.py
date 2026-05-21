@@ -12,6 +12,7 @@ from strata.plugins.registry import (
     RouteRegistry,
     SearchRegistry,
     StorageRegistry,
+    StorageTemplateRegistry,
     ThumbRegistry,
 )
 
@@ -25,6 +26,12 @@ PluginRegistryDep = Annotated[PluginRegistry, Depends(plugin_registry_dep)]
 
 def storage_registry_dep(plugin_registry: PluginRegistryDep) -> StorageRegistry:
     return plugin_registry.storage
+
+
+def storage_template_registry_dep(
+    plugin_registry: PluginRegistryDep,
+) -> StorageTemplateRegistry:
+    return plugin_registry.storage_templates
 
 
 def route_registry_dep(plugin_registry: PluginRegistryDep) -> RouteRegistry:
@@ -52,6 +59,9 @@ def db_registry_dep(plugin_registry: PluginRegistryDep) -> DbRegistry:
 
 
 StorageRegistryDep = Annotated[StorageRegistry, Depends(storage_registry_dep)]
+StorageTemplateRegistryDep = Annotated[
+    StorageTemplateRegistry, Depends(storage_template_registry_dep)
+]
 RouteRegistryDep = Annotated[RouteRegistry, Depends(route_registry_dep)]
 FileHandlerRegistryDep = Annotated[FileHandlerRegistry, Depends(file_handlers_registry_dep)]
 AuthRegistryDep = Annotated[AuthRegistry, Depends(auth_registry_dep)]

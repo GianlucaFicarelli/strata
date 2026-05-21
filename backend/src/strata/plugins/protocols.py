@@ -12,6 +12,9 @@ Extension points
 ----------------
 :class:`StorageBackend`
     Provides access to a storage system (filesystem, S3, SMB, …).
+:class:`StorageTemplate`
+    Blueprint for admin-configurable storage instances.  The admin creates
+    instances; the core constructs backends at request time.
 :class:`FileHandler`
     Provides a frontend viewer or editor for specific file extensions.
 :class:`RouteProvider`
@@ -27,16 +30,47 @@ Extension points
 """
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 from sqlalchemy import MetaData
 
 from strata.schemas.auth import AuthUser
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
 from strata.schemas.search import SearchResult
+
+
+@dataclass(frozen=True)
+class InstanceContext:
+    """Runtime context passed to ``StorageTemplate.create()``.
+
+    Carries the resolved user identity so that template fields such as
+    ``/home/{username}`` can be expanded before the backend is constructed.
+
+    Attributes:
+        user_id: The ``core_users.id`` UUID of the requesting user.
+        username: The display/login name of the requesting user.
+    """
+
+    user_id: str
+    username: str
+
+    def expand(self, template: str) -> str:
+        """Expand ``{user_id}`` and ``{username}`` placeholders in *template*.
+
+        Args:
+            template: String that may contain ``{username}`` or ``{user_id}``.
+
+        Returns:
+            String with all known placeholders substituted.
+        """
+        return template.replace("{user_id}", self.user_id).replace(
+            "{username}", self.username
+        )
 
 
 @runtime_checkable
@@ -58,100 +92,97 @@ class StorageBackend(Protocol):
     name: str
 
     async def list(self, path: str) -> list[FileEntry]:
-        """List the contents of a directory.
-
-        Args:
-            path: Backend-relative directory path.
-
-        Returns:
-            Entries sorted directories-first, then alphabetically by name.
-
-        Raises:
-            HTTPException: 404 if *path* does not exist; 400 if it is not
-                a directory.
-        """
+        """List the contents of a directory."""
         ...
 
     async def read(self, path: str) -> AsyncIterator[bytes]:
-        """Return an async byte-stream for a file.
-
-        Args:
-            path: Backend-relative file path.
-
-        Returns:
-            An async generator yielding ``bytes`` chunks.
-
-        Raises:
-            HTTPException: 404 if the file does not exist.
-        """
+        """Return an async byte-stream for a file."""
         ...
 
     async def write(self, path: str, stream: AsyncIterator[bytes]) -> None:
-        """Write a byte-stream to a path, creating it if necessary.
-
-        Args:
-            path: Backend-relative destination path.
-            stream: Async generator providing the file's bytes.
-        """
+        """Write a byte-stream to a path, creating it if necessary."""
         ...
 
     async def delete(self, path: str) -> None:
-        """Delete a file or directory (recursively for directories).
-
-        Args:
-            path: Backend-relative path to delete.
-
-        Raises:
-            HTTPException: 404 if *path* does not exist.
-        """
+        """Delete a file or directory (recursively for directories)."""
         ...
 
     async def mkdir(self, path: str) -> None:
-        """Create a directory, including any missing parents.
-
-        Args:
-            path: Backend-relative path of the directory to create.
-        """
+        """Create a directory, including any missing parents."""
         ...
 
     async def move(self, src: str, dst: str) -> None:
-        """Move or rename a file or directory.
-
-        Args:
-            src: Backend-relative source path.
-            dst: Backend-relative destination path.
-
-        Raises:
-            HTTPException: 404 if *src* does not exist.
-        """
+        """Move or rename a file or directory."""
         ...
 
     def describe(self) -> StorageMeta:
-        """Return a summary of this backend.
+        """Return a summary of this backend for the backend picker."""
+        ...
 
-        Used by ``GET /api/backends`` to populate the frontend backend picker.
+
+@runtime_checkable
+class StorageTemplate(Protocol):
+    """Protocol for plugin-registered storage blueprints.
+
+    A ``StorageTemplate`` describes a class of storage configuration.  The
+    admin creates one or more *instances* from a template (via the admin UI),
+    and the core constructs a :class:`StorageBackend` at request time by
+    resolving the instance config against the requesting user's context.
+
+    Plugin authors implement this alongside (or instead of) a raw
+    :class:`StorageBackend` registration.
+
+    Attributes:
+        plugin_id: Must match the plugin's entry-point name, e.g.
+            ``"storage_local"``.  Used as the FK in ``core_storage_instances``.
+        display_name: Human-readable name shown in the admin template picker.
+        description: One-line description.
+        config_schema: The Pydantic model class describing the admin-level
+            configuration.  Must be a subclass of ``pydantic.BaseModel``.
+            Fields support the following ``json_schema_extra`` flags:
+
+            - ``"secret": True`` — value is encrypted at rest; masked in
+              GET responses.
+            - ``"template": True`` — value may contain ``{username}`` /
+              ``{user_id}`` placeholders expanded at request time.
+            - ``"user_editable": True`` — user may override this field via
+              the self-service UI.  Admin sets a default; user fills it in.
+              Combine with ``"secret": True`` for passwords.
+    """
+
+    plugin_id: str
+    display_name: str
+    description: str
+    config_schema: type[BaseModel]
+
+    def create(
+        self,
+        config: BaseModel,
+        context: InstanceContext,
+    ) -> StorageBackend:
+        """Construct a :class:`StorageBackend` from a resolved config.
+
+        Called once per request for each file operation on an instance-backed
+        backend.  Must be cheap (no I/O); connection setup should happen
+        lazily inside the backend's operation methods.
+
+        Args:
+            config: Validated instance of :attr:`config_schema` with all
+                admin-level fields set.  Secret fields are already decrypted.
+                Template fields are NOT yet expanded — call
+                ``context.expand(value)`` on string fields marked
+                ``template=True``.
+            context: Runtime user context for template variable expansion.
 
         Returns:
-            An instance of StorageMeta with at least ``"id"`` and ``"name"``.
+            A ready-to-use :class:`StorageBackend` scoped to this request.
         """
         ...
 
 
 @runtime_checkable
 class FileHandler(Protocol):
-    """Protocol for objects that handle specific file types in the frontend.
-
-    A ``FileHandler`` declares which file extensions it can render and
-    provides the server-relative URL of the JavaScript ES module that
-    implements the viewer or editor component.  The module must export a
-    ``register(registry)`` function.
-
-    Attributes:
-        handles: Lower-cased extensions including the leading dot, e.g.
-            ``[".docx", ".xlsx"]``.
-        frontend_module: Server-relative URL of the JS ES module, e.g.
-            ``"/api/plugins/image_preview/assets/main.js"``.
-    """
+    """Protocol for objects that handle specific file types in the frontend."""
 
     handles: list[str]
     frontend_module: str
@@ -159,79 +190,26 @@ class FileHandler(Protocol):
 
 @runtime_checkable
 class RouteProvider(Protocol):
-    """Protocol for objects that contribute FastAPI routes to the application.
-
-    The router returned by :meth:`get_router` is mounted onto the FastAPI
-    application at startup.  Use this for plugin-specific API endpoints such
-    as thumbnail generators, WOPI hosts, or custom webhooks.
-    """
+    """Protocol for objects that contribute FastAPI routes to the application."""
 
     def get_router(self) -> APIRouter:
-        """Return a FastAPI ``APIRouter`` containing this provider's routes.
-
-        Returns:
-            A configured ``fastapi.APIRouter`` instance.
-        """
+        """Return a FastAPI ``APIRouter`` containing this provider's routes."""
         ...
 
 
 @runtime_checkable
 class AuthProvider(Protocol):
-    """Protocol for objects that authenticate users.
-
-    An ``AuthProvider`` verifies credentials and returns an
-    :class:`AuthUser`.  Multiple providers can coexist (e.g. local password
-    auth alongside LDAP); the registry tries them in registration order.
-
-    Attributes:
-        id: Unique snake_case identifier, e.g. ``"password"`` or ``"ldap"``.
-        name: Human-readable name shown in the login UI.
-    """
+    """Protocol for objects that authenticate users."""
 
     id: str
     name: str
 
     async def authenticate(self, credentials: dict[str, str]) -> AuthUser | None:
-        """Attempt to authenticate a user from the given credentials.
-
-        Args:
-            credentials: A dict of credential fields, e.g.
-                ``{"username": "alice", "password": "secret"}``.  The exact
-                keys depend on the provider.
-
-        Returns:
-            An :class:`AuthUser` if authentication succeeded, or ``None``
-            if the credentials were not recognised by this provider.
-
-        Raises:
-            HTTPException: 401 if credentials were recognised but invalid.
-                Return ``None`` — do not raise — if this provider simply
-                does not handle these credentials at all.
-        """
+        """Attempt to authenticate a user from the given credentials."""
         ...
 
     async def verify_token(self, token: str) -> AuthUser | None:
-        """Verify a bearer token and return the corresponding user.
-
-        This method is **optional** — providers that issue tokens (e.g. JWT,
-        OIDC) should implement it; credential-only providers (e.g. LDAP used
-        solely for login) may omit it.  The default implementation returns
-        ``None``, meaning "this provider does not handle this token".
-
-        The core's ``require_current_user_dep`` dependency calls this in
-        registration order, stopping at the first non-``None`` result.
-        This keeps the core completely decoupled from any specific token format.
-
-        Args:
-            token: Raw bearer token string from the ``Authorization`` header.
-
-        Returns:
-            An :class:`AuthUser` if the token is valid, or ``None`` if this
-            provider does not recognise or cannot verify the token.
-
-        Raises:
-            HTTPException: 401 if the token is recognised but invalid/expired.
-        """
+        """Verify a bearer token and return the corresponding user."""
         ...
 
     def describe(self) -> dict[str, Any]:
@@ -241,15 +219,7 @@ class AuthProvider(Protocol):
 
 @runtime_checkable
 class SearchProvider(Protocol):
-    """Protocol for objects that provide search over a storage backend.
-
-    A ``SearchProvider`` is tied to a specific storage backend (matched by
-    :attr:`backend_id`) and indexes or queries that backend's contents.
-
-    Attributes:
-        backend_id: The ``id`` of the :class:`StorageBackend` this provider
-            searches, e.g. ``"local"``.
-    """
+    """Protocol for objects that provide search over a storage backend."""
 
     backend_id: str
 
@@ -260,63 +230,24 @@ class SearchProvider(Protocol):
         *,
         limit: int = 50,
     ) -> list[SearchResult]:
-        """Search for files matching *query* under *path*.
-
-        Args:
-            query: Free-text or structured query string.
-            path: Backend-relative directory to restrict the search to.
-                Defaults to the root.
-            limit: Maximum number of results to return.
-
-        Returns:
-            A list of :class:`SearchResult` objects sorted by descending
-            relevance score.
-        """
+        """Search for files matching *query* under *path*."""
         ...
 
     async def index(self, entry: FileEntry, content: AsyncIterator[bytes]) -> None:
-        """Index a file so that it appears in future search results.
-
-        Called automatically by the file write pipeline when search indexing
-        is enabled.  Implementations should be idempotent.
-
-        Args:
-            entry: Metadata of the file to index.
-            content: Async byte-stream of the file's content.
-        """
+        """Index a file so that it appears in future search results."""
         ...
 
     async def deindex(self, path: str) -> None:
-        """Remove a file from the search index.
-
-        Called automatically when a file is deleted or moved.
-
-        Args:
-            path: Backend-relative path of the file to remove from the index.
-        """
+        """Remove a file from the search index."""
         ...
 
 
 @runtime_checkable
 class ThumbProvider(Protocol):
-    """Protocol for objects that generate thumbnail images.
-
-    A ``ThumbProvider`` accepts a file byte-stream and returns a resized
-    JPEG or PNG thumbnail.  Multiple providers can be registered; the
-    registry selects the first one whose :meth:`can_handle` returns ``True``
-    for a given MIME type.
-    """
+    """Protocol for objects that generate thumbnail images."""
 
     def can_handle(self, mime: str) -> bool:
-        """Return ``True`` if this provider can thumbnail files of *mime*.
-
-        Args:
-            mime: MIME type string, e.g. ``"image/png"`` or
-                ``"application/pdf"``.
-
-        Returns:
-            ``True`` if this provider handles the given MIME type.
-        """
+        """Return ``True`` if this provider can thumbnail files of *mime*."""
         ...
 
     async def generate(
@@ -326,43 +257,13 @@ class ThumbProvider(Protocol):
         width: int = 256,
         height: int = 256,
     ) -> bytes:
-        """Generate a thumbnail from a file byte-stream.
-
-        Args:
-            stream: Async byte-stream of the source file.
-            width: Maximum thumbnail width in pixels.
-            height: Maximum thumbnail height in pixels.
-
-        Returns:
-            Raw bytes of the thumbnail image (JPEG or PNG).
-        """
+        """Generate a thumbnail from a file byte-stream."""
         ...
 
 
 @runtime_checkable
 class DbContributor(Protocol):
-    """Protocol for plugins that contribute database tables.
-
-    A plugin that defines SQLAlchemy ORM models should implement this
-    protocol and register an instance via ``registry.db.add(...)``.
-
-    The :class:`~strata.plugins.registry.DbRegistry` collects all
-    contributors at startup and, for each one, runs ``alembic upgrade head``
-
-    Migration ordering
-    ------------------
-    Contributors are migrated in registration order.  The core
-    ``core_users`` contributor is always registered first (before any
-    plugin's ``register()`` runs), so plugins that declare a FK to
-    ``core_users.id`` are safe to migrate after it.
-
-    Attributes:
-        metadata: The SQLAlchemy :class:`~sqlalchemy.MetaData` for this
-            plugin's tables.  Typically ``MyPluginBase.metadata``.
-        migrations_dir: Absolute :class:`~pathlib.Path` to the Alembic
-            ``migrations/`` directory (contains ``env.py`` and
-            ``versions/``).
-    """
+    """Protocol for plugins that contribute database tables."""
 
     metadata: MetaData
     migrations_dir: Path

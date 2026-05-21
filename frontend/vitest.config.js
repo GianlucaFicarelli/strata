@@ -21,6 +21,7 @@ export default mergeConfig(
           'src/App.jsx',
           'src/shell/FilePreview.jsx',
           'src/shell/Sidebar.jsx',
+          'src/admin/AdminLayout.jsx',
         ],
         reporter: ['text', 'html', 'lcov'],
         reportsDirectory: '.coverage',

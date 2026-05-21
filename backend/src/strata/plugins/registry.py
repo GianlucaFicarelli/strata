@@ -1,25 +1,12 @@
-"""Plugin registry — the set of all extension points in Strata.
-
-A single :class:`PluginRegistry` instance is created at application startup
-and passed to every plugin's :meth:`~strata.plugins.base.BackendPlugin.register`
-method.  Each plugin calls the typed ``add`` methods on the appropriate
-sub-registry to contribute its capabilities.
-
-The application reads from these registries when:
-
-- wiring FastAPI routes (``RouteRegistry``)
-- resolving ``?backend=<id>`` query parameters (``StorageRegistry``)
-- building the frontend plugin manifest (``FileHandlerRegistry``)
-- selecting a thumbnail generator (``ThumbRegistry``)
-- running a search query (``SearchRegistry``)
-- authenticating a login request (``AuthRegistry``)
-"""
+"""Plugin registry — the set of all extension points in Strata."""
 
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import Any
 
-from fastapi import HTTPException
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from strata.plugins.protocols import (
     AuthProvider,
@@ -28,56 +15,30 @@ from strata.plugins.protocols import (
     RouteProvider,
     SearchProvider,
     StorageBackend,
+    StorageTemplate,
     ThumbProvider,
 )
 from strata.schemas.auth import AuthUser
 from strata.schemas.search import SearchResult
 
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
 
-    from fastapi import APIRouter
 
 L = logging.getLogger(__name__)
 
 
 class StorageRegistry:
-    """Registry of available :class:`~strata.plugins.protocols.StorageBackend` instances.
-
-    Queried by the ``backend_dep`` FastAPI dependency to resolve
-    ``?backend=<id>`` on every file endpoint.
-    """
+    """Registry of available :class:`~strata.plugins.protocols.StorageBackend` instances."""
 
     def __init__(self) -> None:
         self._backends: dict[str, StorageBackend] = {}
 
     def add(self, backend: StorageBackend) -> None:
-        """Register a storage backend.
-
-        If a backend with the same :attr:`~StorageBackend.id` is already
-        registered it will be replaced and a warning logged.
-
-        Args:
-            backend: A :class:`~strata.plugins.protocols.StorageBackend`
-                implementation to register.
-        """
         if backend.id in self._backends:
             L.warning("Replacing already-registered storage backend %r", backend.id)
         self._backends[backend.id] = backend
         L.info("Registered storage backend %r (%s)", backend.id, backend.name)
 
     def get(self, backend_id: str) -> StorageBackend:
-        """Look up a backend by its :attr:`~StorageBackend.id`.
-
-        Args:
-            backend_id: The identifier to look up, e.g. ``"s3"``.
-
-        Returns:
-            The matching :class:`~strata.plugins.protocols.StorageBackend`.
-
-        Raises:
-            HTTPException: 400 if *backend_id* is not registered.
-        """
         try:
             return self._backends[backend_id]
         except KeyError:
@@ -88,119 +49,125 @@ class StorageRegistry:
             ) from None
 
     def all(self) -> list[StorageBackend]:
-        """Return every registered backend in registration order.
-
-        Returns:
-            A list of :class:`~strata.plugins.protocols.StorageBackend` instances.
-        """
         return list(self._backends.values())
 
 
-class RouteRegistry:
-    """Registry of :class:`~strata.plugins.protocols.RouteProvider` instances.
+class StorageTemplateRegistry:
+    """Registry of :class:`~strata.plugins.protocols.StorageTemplate` instances.
 
-    Routers are collected during plugin registration and mounted onto the
-    FastAPI application in a single pass during startup.
+    Templates are registered by plugins at startup.  The admin creates
+    instances from templates via the admin API.  At request time, the storage
+    dependency resolves instance IDs by looking up the appropriate template
+    and calling ``template.create(config, context)``.
     """
+
+    def __init__(self) -> None:
+        self._templates: dict[str, StorageTemplate] = {}
+
+    def add(self, template: StorageTemplate) -> None:
+        """Register a storage template.
+
+        Args:
+            template: A :class:`~strata.plugins.protocols.StorageTemplate`
+                implementation to register.
+        """
+        if template.plugin_id in self._templates:
+            L.warning("Replacing already-registered storage template %r", template.plugin_id)
+        self._templates[template.plugin_id] = template
+        L.info(
+            "Registered storage template %r (%s)",
+            template.plugin_id,
+            template.display_name,
+        )
+
+    def get(self, plugin_id: str) -> StorageTemplate | None:
+        """Return the template for *plugin_id*, or ``None``."""
+        return self._templates.get(plugin_id)
+
+    def all(self) -> list[StorageTemplate]:
+        """Return every registered template in registration order."""
+        return list(self._templates.values())
+
+    def schema_for(self, plugin_id: str) -> dict[str, Any] | None:
+        """Return the JSON Schema for a template's config model, or ``None``."""
+        template = self.get(plugin_id)
+        if template is None:
+            return None
+        return template.config_schema.model_json_schema()
+
+    def has_any_secret_fields(self) -> bool:
+        """Return ``True`` if any registered template has secret config fields."""
+        for template in self._templates.values():
+            schema = template.config_schema.model_json_schema()
+            for prop in schema.get("properties", {}).values():
+                if prop.get("secret"):
+                    return True
+        return False
+
+    def validate_config(self, plugin_id: str, config: dict[str, Any]) -> BaseModel:
+        """Validate *config* against the template's schema.
+
+        Args:
+            plugin_id: Template identifier.
+            config: Raw config dict from the request body.
+
+        Returns:
+            Validated Pydantic model instance.
+
+        Raises:
+            HTTPException: 400 if *plugin_id* is unknown or validation fails.
+        """
+        template = self.get(plugin_id)
+        if template is None:
+            raise HTTPException(status_code=400, detail=f"Unknown template {plugin_id!r}")
+        try:
+            return template.config_schema.model_validate(config)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class RouteRegistry:
+    """Registry of :class:`~strata.plugins.protocols.RouteProvider` instances."""
 
     def __init__(self) -> None:
         self._providers: list[RouteProvider] = []
 
     def add(self, provider: RouteProvider) -> None:
-        """Register a route provider.
-
-        Args:
-            provider: A :class:`~strata.plugins.protocols.RouteProvider`
-                whose router will be mounted at startup.
-        """
         self._providers.append(provider)
         L.info("Registered route provider: %r", type(provider).__name__)
 
     def all_routers(self) -> list[APIRouter]:
-        """Return all routers ready to be mounted onto the FastAPI app.
-
-        Returns:
-            A list of ``fastapi.APIRouter`` instances.
-        """
         return [p.get_router() for p in self._providers]
 
 
 class FileHandlerRegistry:
-    """Registry of :class:`~strata.plugins.protocols.FileHandler` instances.
-
-    The frontend shell reads the handler list from ``GET /api/plugins`` to
-    know which JS module to load for each file extension.
-    """
+    """Registry of :class:`~strata.plugins.protocols.FileHandler` instances."""
 
     def __init__(self) -> None:
         self._handlers: list[FileHandler] = []
 
     def add(self, handler: FileHandler) -> None:
-        """Register a file handler.
-
-        Args:
-            handler: A :class:`~strata.plugins.protocols.FileHandler`
-                implementation to register.
-        """
         self._handlers.append(handler)
-        L.info(
-            "Registered file handler %r for: %s",
-            type(handler).__name__,
-            handler.handles,
-        )
+        L.info("Registered file handler %r for: %s", type(handler).__name__, handler.handles)
 
     def all(self) -> list[FileHandler]:
-        """Return every registered file handler in registration order.
-
-        Returns:
-            A list of :class:`~strata.plugins.protocols.FileHandler` instances.
-        """
         return list(self._handlers)
 
     def for_extension(self, ext: str) -> FileHandler | None:
-        """Find the first handler that covers a given file extension.
-
-        Args:
-            ext: Lower-cased extension including the leading dot,
-                e.g. ``".docx"``.
-
-        Returns:
-            The first matching handler, or ``None``.
-        """
         return next((h for h in self._handlers if ext in h.handles), None)
 
 
 class AuthRegistry:
-    """Registry of :class:`~strata.plugins.protocols.AuthProvider` instances.
-
-    Providers are tried in registration order; the first one that returns a
-    non-``None`` :class:`~strata.plugins.protocols.AuthUser` wins.
-    """
+    """Registry of :class:`~strata.plugins.protocols.AuthProvider` instances."""
 
     def __init__(self) -> None:
         self._providers: list[AuthProvider] = []
 
     def add(self, provider: AuthProvider) -> None:
-        """Register an authentication provider.
-
-        Args:
-            provider: A :class:`~strata.plugins.protocols.AuthProvider`
-                implementation to register.
-        """
         self._providers.append(provider)
         L.info("Registered auth provider %r (%s)", provider.id, provider.name)
 
     async def authenticate(self, credentials: dict[str, str]) -> AuthUser | None:
-        """Try each provider in order and return the first successful result.
-
-        Args:
-            credentials: A dict of credential fields forwarded to each
-                provider's :meth:`~AuthProvider.authenticate` method.
-
-        Returns:
-            The authenticated :class:`~strata.plugins.protocols.AuthUser`, or
-            ``None`` if no provider recognised the credentials.
-        """
         for provider in self._providers:
             user = await provider.authenticate(credentials)
             if user is not None:
@@ -208,19 +175,6 @@ class AuthRegistry:
         return None
 
     async def verify_token(self, token: str) -> AuthUser | None:
-        """Try each provider's :meth:`~AuthProvider.verify_token` in order.
-
-        Providers that do not implement token verification (the default is to
-        return ``None``) are silently skipped.  The first provider that returns
-        a non-``None`` :class:`~strata.plugins.protocols.AuthUser` wins.
-
-        Args:
-            token: Raw bearer token string from the ``Authorization`` header.
-
-        Returns:
-            The authenticated :class:`~strata.plugins.protocols.AuthUser`, or
-            ``None`` if no provider recognised the token.
-        """
         for provider in self._providers:
             user = await provider.verify_token(token)
             if user is not None:
@@ -228,33 +182,16 @@ class AuthRegistry:
         return None
 
     def all(self) -> list[AuthProvider]:
-        """Return every registered auth provider in registration order.
-
-        Returns:
-            A list of :class:`~strata.plugins.protocols.AuthProvider` instances.
-        """
         return list(self._providers)
 
 
 class SearchRegistry:
-    """Registry of :class:`~strata.plugins.protocols.SearchProvider` instances.
-
-    Each provider is associated with a specific storage backend via its
-    :attr:`~SearchProvider.backend_id` attribute.
-    """
+    """Registry of :class:`~strata.plugins.protocols.SearchProvider` instances."""
 
     def __init__(self) -> None:
         self._providers: dict[str, SearchProvider] = {}
 
     def add(self, provider: SearchProvider) -> None:
-        """Register a search provider.
-
-        Args:
-            provider: A :class:`~strata.plugins.protocols.SearchProvider`
-                implementation.  Its :attr:`~SearchProvider.backend_id` must
-                match the ``id`` of an already-registered
-                :class:`~strata.plugins.protocols.StorageBackend`.
-        """
         if provider.backend_id in self._providers:
             L.warning("Replacing search provider for backend %r", provider.backend_id)
         self._providers[provider.backend_id] = provider
@@ -265,15 +202,6 @@ class SearchRegistry:
         )
 
     def get(self, backend_id: str) -> SearchProvider | None:
-        """Return the search provider for *backend_id*, or ``None``.
-
-        Args:
-            backend_id: The storage backend identifier to look up.
-
-        Returns:
-            The matching :class:`~strata.plugins.protocols.SearchProvider`,
-            or ``None`` if no provider is registered for that backend.
-        """
         return self._providers.get(backend_id)
 
     async def search(
@@ -284,17 +212,6 @@ class SearchRegistry:
         *,
         limit: int = 50,
     ) -> list[SearchResult]:
-        """Run a search query against the provider for *backend_id*.
-
-        Args:
-            backend_id: The storage backend to search.
-            query: Free-text query string.
-            path: Backend-relative directory to restrict the search to.
-            limit: Maximum number of results to return.
-
-        Returns:
-            Search results, or an empty list if no provider is registered.
-        """
         provider = self.get(backend_id)
         if provider is None:
             return []
@@ -302,36 +219,16 @@ class SearchRegistry:
 
 
 class ThumbRegistry:
-    """Registry of :class:`~strata.plugins.protocols.ThumbProvider` instances.
-
-    Providers are tried in registration order; the first one whose
-    :meth:`~ThumbProvider.can_handle` returns ``True`` for a given MIME type
-    is used to generate the thumbnail.
-    """
+    """Registry of :class:`~strata.plugins.protocols.ThumbProvider` instances."""
 
     def __init__(self) -> None:
         self._providers: list[ThumbProvider] = []
 
     def add(self, provider: ThumbProvider) -> None:
-        """Register a thumbnail provider.
-
-        Args:
-            provider: A :class:`~strata.plugins.protocols.ThumbProvider`
-                implementation to register.
-        """
         self._providers.append(provider)
         L.info("Registered thumb provider: %r", type(provider).__name__)
 
     def for_mime(self, mime: str) -> ThumbProvider | None:
-        """Find the first provider that can thumbnail files of *mime*.
-
-        Args:
-            mime: MIME type string, e.g. ``"image/png"``.
-
-        Returns:
-            The first matching :class:`~strata.plugins.protocols.ThumbProvider`,
-            or ``None`` if no provider handles this MIME type.
-        """
         return next((p for p in self._providers if p.can_handle(mime)), None)
 
     async def generate(
@@ -342,17 +239,6 @@ class ThumbRegistry:
         width: int = 256,
         height: int = 256,
     ) -> bytes | None:
-        """Generate a thumbnail for a file, selecting the appropriate provider.
-
-        Args:
-            mime: MIME type of the source file.
-            stream: Async byte-stream of the source file.
-            width: Maximum thumbnail width in pixels.
-            height: Maximum thumbnail height in pixels.
-
-        Returns:
-            Raw thumbnail bytes, or ``None`` if no provider handles *mime*.
-        """
         provider = self.for_mime(mime)
         if provider is None:
             return None
@@ -360,24 +246,12 @@ class ThumbRegistry:
 
 
 class DbRegistry:
-    """Registry of :class:`~strata.plugins.protocols.DbContributor` instances.
-
-    Contributors are stored and iterated in insertion order, which is the
-    migration execution order.  The core ``core_users`` contributor is
-    always inserted before plugins register, ensuring that tables referenced
-    by plugin FKs exist before those plugins' migrations run.
-    """
+    """Registry of :class:`~strata.plugins.protocols.DbContributor` instances."""
 
     def __init__(self) -> None:
         self._contributors: list[DbContributor] = []
 
     def add(self, contributor: DbContributor) -> None:
-        """Register a DB contributor.
-
-        Args:
-            contributor: An object implementing
-                :class:`~strata.plugins.protocols.DbContributor`.
-        """
         self._contributors.append(contributor)
         L.info(
             "Registered DB contributor %r (%d tables)",
@@ -386,32 +260,15 @@ class DbRegistry:
         )
 
     def all(self) -> list[DbContributor]:
-        """Return every registered contributor in registration order.
-
-        Returns:
-            A list of :class:`~strata.plugins.protocols.DbContributor` instances.
-        """
         return list(self._contributors)
 
 
 @dataclass
 class PluginRegistry:
-    """Composite registry holding all extension point sub-registries.
-
-    One instance is created at startup and passed to every plugin's
-    :meth:`~strata.plugins.base.BackendPlugin.register` method.
-
-    Attributes:
-        storage: Registry of storage backends.
-        routes: Registry of FastAPI route providers.
-        file_handlers: Registry of frontend file viewers/editors.
-        auth: Registry of authentication providers.
-        search: Registry of search providers.
-        thumbs: Registry of thumbnail generators.
-        db: Registry of database contributors (ORM metadata + migrations).
-    """
+    """Composite registry holding all extension point sub-registries."""
 
     storage: StorageRegistry = field(default_factory=StorageRegistry)
+    storage_templates: StorageTemplateRegistry = field(default_factory=StorageTemplateRegistry)
     routes: RouteRegistry = field(default_factory=RouteRegistry)
     file_handlers: FileHandlerRegistry = field(default_factory=FileHandlerRegistry)
     auth: AuthRegistry = field(default_factory=AuthRegistry)

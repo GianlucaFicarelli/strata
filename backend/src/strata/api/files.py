@@ -4,20 +4,9 @@ Every endpoint accepts a ``?backend=<id>`` query parameter.  All storage
 logic is delegated to the selected ``StorageBackend`` — this module only
 handles HTTP concerns.
 
-Authentication
---------------
-All endpoints require a valid bearer token when at least one
-``AuthProvider`` is registered (i.e. an auth plugin is loaded).  When no
-auth plugin is active the ``current_user`` parameter is ``None`` and
-requests proceed unauthenticated — useful for local/dev deployments.
-
-The dependency used here is ``OptionalCurrentUserDep``: it resolves to the
-authenticated user when a token is present and valid, or ``None`` when no
-token is provided *and* the endpoint allows anonymous access.
-
-To switch to mandatory authentication, replace ``OptionalCurrentUserDep``
-with ``CurrentUserDep`` or check ``current_user is None`` inside each
-handler and raise 401.
+The ``move`` endpoint is the sole exception: it accepts ``backend`` in the
+request body (alongside ``src`` and ``dst``) and resolves the backend itself
+so the schema stays consistent with the frontend expectation.
 """
 
 from collections.abc import AsyncIterator
@@ -28,7 +17,8 @@ from fastapi import APIRouter, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 from strata.dependencies.auth import OptionalCurrentUserDep
-from strata.dependencies.registry import StorageRegistryDep
+from strata.dependencies.db import AsyncSessionDep
+from strata.dependencies.registry import StorageRegistryDep, StorageTemplateRegistryDep
 from strata.dependencies.storage import StorageBackendDep
 from strata.schemas.files import (
     DirectoryCreateResult,
@@ -38,6 +28,7 @@ from strata.schemas.files import (
     FileMoveResult,
     FileUploadResult,
 )
+from strata.storage import service as storage_service
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -83,13 +74,7 @@ async def upload_file(
             yield chunk
 
     await storage.write(dest, _stream())
-    return FileUploadResult.model_validate(
-        {
-            "status": "ok",
-            "path": dest,
-            "backend": storage.id,
-        }
-    )
+    return FileUploadResult(status="ok", path=dest, backend=storage.id)
 
 
 @router.delete("/delete")
@@ -100,7 +85,7 @@ async def delete_path(
 ) -> FileDeleteResult:
     """Delete a file or directory on the selected backend."""
     await storage.delete(path)
-    return FileDeleteResult.model_validate({"status": "ok"})
+    return FileDeleteResult(status="ok")
 
 
 @router.post("/mkdir")
@@ -111,16 +96,44 @@ async def make_dir(
 ) -> DirectoryCreateResult:
     """Create a directory on the selected backend."""
     await storage.mkdir(path)
-    return DirectoryCreateResult.model_validate({"status": "ok"})
+    return DirectoryCreateResult(status="ok")
 
 
 @router.post("/move")
 async def move_path(
-    storage_registry: StorageRegistryDep,
     req: FileMoveRequest,
     current_user: OptionalCurrentUserDep,
+    session: AsyncSessionDep,
+    storage_registry: StorageRegistryDep,
+    template_registry: StorageTemplateRegistryDep,
 ) -> FileMoveResult:
-    """Move or rename a path on the selected backend."""
-    storage = storage_registry.get(req.backend)
-    await storage.move(req.src, req.dst)
-    return FileMoveResult.model_validate({"status": "ok"})
+    """Move or rename a path on the selected backend.
+
+    The backend is resolved from ``req.backend`` with the same two-step
+    logic as ``StorageBackendDep`` (static registry first, then instance lookup).
+    """
+    # Static registry first
+    if storage_registry._backends.get(req.backend):  # noqa: SLF001
+        backend = storage_registry.get(backend_id=req.backend)
+    else:
+        if current_user is None:
+            from fastapi import HTTPException, status
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access storage instances",
+            )
+        backend = await storage_service.resolve_backend_for_user(
+            session,
+            instance_id=req.backend,
+            user_id=current_user.id,
+            username=current_user.username,
+            template_registry=template_registry,
+        )
+        if backend is None:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400,
+                detail=f"Backend {req.backend!r} not found or not available for this user",
+            )
+    await backend.move(req.src, req.dst)
+    return FileMoveResult(status="ok")

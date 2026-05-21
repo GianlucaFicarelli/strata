@@ -15,3 +15,13 @@ Object.defineProperty(window, 'matchMedia', {
     addEventListener: () => {},
   }),
 });
+
+// Ant Design's Tooltip/Popconfirm/Select use ResizeObserver internally.
+// jsdom doesn't implement it so we provide a no-op stub.
+if (typeof window.ResizeObserver === 'undefined') {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
