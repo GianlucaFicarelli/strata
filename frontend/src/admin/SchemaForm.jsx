@@ -18,9 +18,7 @@
  *   hideFields    Set<string>  fields hidden entirely   (default: empty)
  */
 
-import {
-  InfoCircleOutlined,
-} from '@ant-design/icons';
+import { InfoCircleOutlined } from '@ant-design/icons';
 import { Form, Input, InputNumber, Switch, Tooltip, Typography } from 'antd';
 
 const { Text } = Typography;
@@ -39,13 +37,7 @@ function FieldInput({ name, prop, value, onChange, readOnly }) {
   ) : undefined;
 
   if (prop.type === 'boolean') {
-    return (
-      <Switch
-        checked={!!value}
-        onChange={(v) => onChange(name, v)}
-        disabled={readOnly}
-      />
-    );
+    return <Switch checked={!!value} onChange={(v) => onChange(name, v)} disabled={readOnly} />;
   }
 
   if (prop.type === 'integer' || prop.type === 'number') {

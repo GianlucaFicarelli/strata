@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Modal,
+  message,
   Popconfirm,
   Select,
   Space,
@@ -16,7 +17,6 @@ import {
   Table,
   Tag,
   Typography,
-  message,
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {

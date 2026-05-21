@@ -2,10 +2,9 @@
  * Tests for AdminStoragePage.
  */
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
 import AdminStoragePage from '../../admin/AdminStoragePage';
 
 vi.mock('../../core-plugins/api', () => ({
@@ -154,7 +153,9 @@ describe('AdminStoragePage — enable/disable toggle', () => {
 });
 
 describe('AdminStoragePage — delete instance', () => {
-  afterEach(() => { cleanup(); });
+  afterEach(() => {
+    cleanup();
+  });
 
   it('calls deleteAdminInstance after popconfirm confirmation', async () => {
     listStorageTemplates.mockResolvedValue([TEMPLATE]);
@@ -164,9 +165,7 @@ describe('AdminStoragePage — delete instance', () => {
     await waitFor(() => screen.getByText('Home Dirs'));
 
     // Find the delete button (danger icon button in the row)
-    const deleteBtn = screen
-      .getAllByRole('button')
-      .find((b) => b.querySelector('.anticon-delete'));
+    const deleteBtn = screen.getAllByRole('button').find((b) => b.querySelector('.anticon-delete'));
     expect(deleteBtn).toBeDefined();
     await userEvent.click(deleteBtn);
 

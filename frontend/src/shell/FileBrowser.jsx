@@ -239,9 +239,7 @@ export default function FileBrowser() {
           style={{ minWidth: 200 }}
           options={backends.map((b) => ({
             value: b.id,
-            label: b.plugin_id
-              ? `${b.name} (${b.plugin_id})`
-              : b.name,
+            label: b.plugin_id ? `${b.name} (${b.plugin_id})` : b.name,
           }))}
         />
       </div>

@@ -125,17 +125,16 @@ describe('uploadFile', () => {
   });
 });
 
-
 // ── Admin storage API ─────────────────────────────────────────────────────────
 
 import {
   createAdminInstance,
   deleteAdminInstance,
+  getUserInstanceConfig,
   listAdminInstances,
   listStorageTemplates,
-  updateAdminInstance,
-  getUserInstanceConfig,
   listUserInstances,
+  updateAdminInstance,
   updateUserInstanceConfig,
 } from '../../core-plugins/api';
 

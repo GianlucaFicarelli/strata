@@ -18,15 +18,15 @@ export default function AdminLayout({ children }) {
   if (!user?.is_admin) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
-        <Title level={3} type="danger">Access Denied</Title>
+        <Title level={3} type="danger">
+          Access Denied
+        </Title>
         <p>This area is restricted to administrators.</p>
       </div>
     );
   }
 
-  const navItems = [
-    { key: '/admin/storage', label: 'Storage', icon: <SettingOutlined /> },
-  ];
+  const navItems = [{ key: '/admin/storage', label: 'Storage', icon: <SettingOutlined /> }];
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
@@ -39,7 +39,16 @@ export default function AdminLayout({ children }) {
           flexShrink: 0,
         }}
       >
-        <div style={{ padding: '8px 16px 16px', color: '#8c8c8c', fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+        <div
+          style={{
+            padding: '8px 16px 16px',
+            color: '#8c8c8c',
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}
+        >
           Admin
         </div>
         <Menu

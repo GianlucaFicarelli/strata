@@ -84,9 +84,7 @@ export default function Sidebar() {
           key: 'admin-group',
           label: 'Admin',
           type: 'group',
-          children: [
-            { key: '/admin/storage', label: 'Storage Instances', icon: <ToolOutlined /> },
-          ],
+          children: [{ key: '/admin/storage', label: 'Storage Instances', icon: <ToolOutlined /> }],
         },
       ]
     : [];

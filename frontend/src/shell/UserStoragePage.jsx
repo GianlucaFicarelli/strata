@@ -5,19 +5,10 @@
  */
 
 import { CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import {
-  Badge,
-  Card,
-  Col,
-  Form,
-  Row,
-  Switch,
-  Typography,
-  message,
-} from 'antd';
+import { Card, Form, message, Switch, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
-import { listUserInstances, updateUserInstanceConfig } from '../core-plugins/api';
 import SchemaForm from '../admin/SchemaForm';
+import { listUserInstances, updateUserInstanceConfig } from '../core-plugins/api';
 
 const { Title, Text } = Typography;
 
@@ -72,9 +63,11 @@ function InstanceCard({ inst, onUpdate }) {
     }
   }
 
-  const statusIcon = inst.is_ready
-    ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
-    : <ExclamationCircleOutlined style={{ color: '#faad14' }} />;
+  const statusIcon = inst.is_ready ? (
+    <CheckCircleOutlined style={{ color: '#52c41a' }} />
+  ) : (
+    <ExclamationCircleOutlined style={{ color: '#faad14' }} />
+  );
 
   return (
     <Card
@@ -82,12 +75,7 @@ function InstanceCard({ inst, onUpdate }) {
       style={{ marginBottom: 16, background: '#1a1a1a', border: '1px solid #2a2a2a' }}
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Switch
-            size="small"
-            checked={inst.is_enabled}
-            onChange={handleToggle}
-            loading={saving}
-          />
+          <Switch size="small" checked={inst.is_enabled} onChange={handleToggle} loading={saving} />
           <span style={{ fontWeight: 600 }}>{inst.instance_name}</span>
           <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
             {inst.plugin_display_name}
@@ -152,7 +140,9 @@ export default function UserStoragePage() {
 
       {enabled.length > 0 && (
         <>
-          <Text strong style={{ display: 'block', marginBottom: 8 }}>Active</Text>
+          <Text strong style={{ display: 'block', marginBottom: 8 }}>
+            Active
+          </Text>
           {enabled.map((inst) => (
             <InstanceCard key={inst.instance_id} inst={inst} onUpdate={load} />
           ))}

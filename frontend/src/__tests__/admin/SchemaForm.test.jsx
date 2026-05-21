@@ -4,21 +4,15 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
-import SchemaForm from '../../admin/SchemaForm';
-
 // Ant Design Form needs a wrapping Form to function; provide a minimal one.
 import { Form } from 'antd';
+import { describe, expect, it, vi } from 'vitest';
+import SchemaForm from '../../admin/SchemaForm';
 
 function renderForm(schema, values = {}, onChange = vi.fn(), opts = {}) {
   return render(
     <Form layout="vertical">
-      <SchemaForm
-        schema={schema}
-        values={values}
-        onChange={onChange}
-        {...opts}
-      />
+      <SchemaForm schema={schema} values={values} onChange={onChange} {...opts} />
     </Form>,
   );
 }
