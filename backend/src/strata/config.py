@@ -9,7 +9,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application settings."""
 
-    model_config = SettingsConfigDict(env_prefix="STRATA_")
+    model_config = SettingsConfigDict(
+        env_prefix="STRATA_",
+        env_file=".env",
+    )
 
     APP_NAME: str = "Strata"
     APP_VERSION: str = "0.1.0"
