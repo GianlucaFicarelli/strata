@@ -12,7 +12,7 @@ from strata.crypto import decrypt_field, encrypt_field
 from strata.db.models import CoreStorageInstance, CoreStorageUserConfig
 from strata.plugins.protocols import InstanceContext, StorageBackend, StorageTemplate
 from strata.plugins.registry import StorageTemplateRegistry
-from strata.schemas.common import StorageMeta
+from strata.schemas.storage import ReadyBackendMeta
 from strata.utils import create_uuid, utcnow
 
 L = logging.getLogger(__name__)
@@ -324,13 +324,11 @@ def user_config_to_response(
 def backend_to_storage_meta(
     instance: CoreStorageInstance,
     backend: StorageBackend,
-) -> StorageMeta:
-    # The routing id sent in ?backend=<id> must be the instance UUID so that
-    # StorageBackendDep can resolve it via the DB.  backend.id is an internal
-    # implementation detail of the plugin and must not be exposed here.
-    return StorageMeta(
+) -> ReadyBackendMeta:
+    # id is the instance UUID — the value the client passes as ?backend=<id>.
+    # backend.id is an internal plugin detail and must not be exposed here.
+    return ReadyBackendMeta(
         id=instance.id,
         name=backend.name,
         plugin_id=instance.plugin_id,
-        instance_id=instance.id,
     )

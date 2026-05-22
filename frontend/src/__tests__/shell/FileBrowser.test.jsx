@@ -33,11 +33,11 @@ vi.mock('../../shell/FilePreview', () => ({
 import { listBackends, listDir } from '../../core-plugins/api';
 import FileBrowser from '../../shell/FileBrowser';
 
-// /api/backends returns only ready instance-backed backends for the current user.
-// id == instance_id because backend_to_storage_meta() uses instance.id as the routing key.
+// /api/storage/backends returns only fully-ready instance backends for the current user.
+// Shape: { id: uuid, name: string, plugin_id: string } — no instance_id, no nullables.
 const BACKENDS = [
-  { id: 'abc-123', name: 'My Local', plugin_id: 'storage_local', instance_id: 'abc-123' },
-  { id: 'def-456', name: 'My S3', plugin_id: 'storage_s3', instance_id: 'def-456' },
+  { id: 'abc-123', name: 'My Local', plugin_id: 'storage_local' },
+  { id: 'def-456', name: 'My S3', plugin_id: 'storage_s3' },
 ];
 
 const ENTRIES = [
@@ -65,10 +65,9 @@ describe('FileBrowser', () => {
     });
   });
 
-  it('auto-selects the first ready instance backend', async () => {
+  it('auto-selects the first ready backend and shows name + plugin_id', async () => {
     render(<FileBrowser />);
     await waitFor(() => {
-      // Ant Design Select shows the active option label
       expect(screen.getByText('My Local (storage_local)')).toBeInTheDocument();
     });
   });
@@ -134,15 +133,14 @@ describe('FileBrowser', () => {
     await waitFor(() => expect(listDir).toHaveBeenCalledTimes(2));
   });
 
-  it('shows empty state message when /api/backends returns no ready backends', async () => {
+  it('shows empty state message when /api/storage/backends returns no ready backends', async () => {
     // The backend only returns instances that are fully ready for the user.
-    // An empty list means the user has nothing enabled yet.
+    // An empty list means the user has nothing enabled and configured yet.
     listBackends.mockResolvedValue([]);
     render(<FileBrowser />);
     await waitFor(() => {
       expect(screen.getByText(/No storage available/i)).toBeInTheDocument();
     });
-    // listDir must never be called when there is no active backend
     expect(listDir).not.toHaveBeenCalled();
   });
 });

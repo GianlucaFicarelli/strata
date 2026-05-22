@@ -28,7 +28,7 @@ function qs(params) {
 // ── File API ──────────────────────────────────────────────────────────────────
 
 export async function listBackends() {
-  const res = await fetch('/api/backends', { headers: authHeaders() });
+  const res = await fetch('/api/storage/backends', { headers: authHeaders() });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

@@ -27,17 +27,14 @@ function mockFetch(json, ok = true, status = 200) {
 }
 
 describe('listBackends', () => {
-  it('calls /api/backends and returns json', async () => {
-    const backends = [
-      { id: INSTANCE_ID, name: 'My Local', plugin_id: 'storage_local', instance_id: INSTANCE_ID },
-    ];
+  it('calls /api/storage/backends and returns json', async () => {
+    const backends = [{ id: 'abc-123-uuid', name: 'My Local', plugin_id: 'storage_local' }];
     global.fetch = mockFetch(backends);
 
     const result = await listBackends();
     expect(result).toEqual(backends);
-    // api.js always passes a headers object (empty when no token is stored)
     expect(global.fetch).toHaveBeenCalledWith(
-      '/api/backends',
+      '/api/storage/backends',
       expect.objectContaining({ headers: expect.any(Object) }),
     );
   });

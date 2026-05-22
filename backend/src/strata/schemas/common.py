@@ -13,9 +13,12 @@ class PluginMeta(BaseModel):
 
 
 class StorageMeta(BaseModel):
-    """Storage backend metadata returned by GET /api/backends."""
+    """Minimal backend descriptor used by the StorageBackend protocol.
+
+    Returned by ``StorageBackend.describe()``.  Not used directly as an API
+    response schema — see ``ReadyBackendMeta`` in ``schemas/storage.py`` for
+    the richer shape returned to clients.
+    """
 
     id: str
     name: str
-    plugin_id: str | None = None
-    instance_id: str | None = None

@@ -125,7 +125,7 @@ class SmbStorageBackend:
         pass
 
     def describe(self) -> StorageMeta:
-        return StorageMeta(id=self.id, name=self.name, plugin_id="storage_smb")
+        return StorageMeta(id=self.id, name=self.name)
 
 
 # ── StorageTemplate ───────────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query, status
 
-from strata.dependencies.auth import OptionalCurrentUserDep
+from strata.dependencies.auth import CurrentUserDep
 from strata.dependencies.db import AsyncSessionDep
 from strata.dependencies.registry import StorageRegistryDep, StorageTemplateRegistryDep
 from strata.plugins.protocols import StorageBackend
@@ -27,7 +27,7 @@ async def storage_backend_dep(
     storage_registry: StorageRegistryDep,
     template_registry: StorageTemplateRegistryDep,
     session: AsyncSessionDep,
-    current_user: OptionalCurrentUserDep,
+    current_user: CurrentUserDep,
     backend: Annotated[str, Query(description="Backend id or instance UUID")],
 ) -> StorageBackend:
     """Resolve ``?backend=<id>`` to a StorageBackend.

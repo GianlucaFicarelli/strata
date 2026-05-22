@@ -14,10 +14,36 @@ from fastapi import APIRouter, HTTPException, status
 from strata.dependencies.auth import CurrentUserDep
 from strata.dependencies.db import AsyncSessionDep
 from strata.dependencies.registry import StorageTemplateRegistryDep
-from strata.schemas.storage import UserStorageConfigResponse, UserStorageConfigUpdate
+from strata.schemas.storage import (
+    ReadyBackendMeta,
+    UserStorageConfigResponse,
+    UserStorageConfigUpdate,
+)
 from strata.storage import service
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
+
+
+@router.get("/backends")
+async def list_ready_backends(
+    current_user: CurrentUserDep,
+    session: AsyncSessionDep,
+    template_registry: StorageTemplateRegistryDep,
+) -> list[ReadyBackendMeta]:
+    """Return storage backends the current user can use right now.
+
+    A backend is included only when all three conditions hold:
+    the instance is admin-enabled, the user has enabled it, and all required
+    user-editable fields are filled.  This is the list the file browser uses
+    to populate its backend picker.
+    """
+    ready = await service.list_ready_backends_for_user(
+        session,
+        user_id=current_user.id,
+        username=current_user.username,
+        template_registry=template_registry,
+    )
+    return [service.backend_to_storage_meta(inst, backend) for inst, backend in ready]
 
 
 @router.get("/instances")

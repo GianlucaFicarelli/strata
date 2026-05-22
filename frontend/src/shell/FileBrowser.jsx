@@ -59,14 +59,13 @@ function pathParts(path) {
 }
 
 /**
- * Map the /api/backends response to Select options.
- * The backend already filters to only ready instance-backed backends for the
- * current user, so every entry here is safe to pass as ?backend=<id>.
+ * Map the /api/storage/backends response to Select options.
+ * Every entry is a fully-ready instance; id is the UUID passed as ?backend=.
  */
 function toPickerOptions(backends) {
   return backends.map((b) => ({
     value: b.id,
-    label: b.plugin_id ? `${b.name} (${b.plugin_id})` : b.name,
+    label: `${b.name} (${b.plugin_id})`,
   }));
 }
 

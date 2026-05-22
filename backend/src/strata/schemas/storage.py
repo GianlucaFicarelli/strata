@@ -91,13 +91,14 @@ class UserStorageConfigResponse(BaseModel):
     is_ready: bool  # True when all required user_editable fields are filled
 
 
-class StorageMeta(BaseModel):
-    """Backend metadata returned by GET /api/backends.
+class ReadyBackendMeta(BaseModel):
+    """Metadata for a fully-ready storage backend, returned by GET /api/storage/backends.
 
-    Extends the core StorageMeta with instance-level fields.
+    ``id`` is the instance UUID and is the value the client passes as ``?backend=<id>``.
+    ``plugin_id`` identifies which template the instance was created from; the frontend
+    uses it to show a human-readable type label next to the instance name.
     """
 
     id: str
     name: str
-    plugin_id: str | None = None
-    instance_id: str | None = None
+    plugin_id: str
