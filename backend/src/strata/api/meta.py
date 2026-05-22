@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 
 from strata.dependencies.auth import OptionalCurrentUserDep
 from strata.dependencies.db import AsyncSessionDep
-from strata.dependencies.registry import StorageRegistryDep, StorageTemplateRegistryDep
+from strata.dependencies.registry import StorageTemplateRegistryDep
 from strata.plugins.loader import PluginLoader
 from strata.schemas.common import PluginMeta, StorageMeta
 from strata.storage import service
@@ -21,30 +21,25 @@ def list_plugins(request: Request) -> list[PluginMeta]:
 
 @router.get("/backends")
 async def list_backends(
-    storage_registry: StorageRegistryDep,
     template_registry: StorageTemplateRegistryDep,
     session: AsyncSessionDep,
     current_user: OptionalCurrentUserDep,
 ) -> list[StorageMeta]:
-    """Return all storage backends available to the requesting user.
+    """Return storage backends available to the requesting user.
 
-    Returns:
-    - Directly registered (raw) backends from ``StorageRegistry``.
-    - Admin-created instances that are ready for this user (is_enabled + all
-      required user_editable fields filled).  Requires authentication.
+    Returns only admin-created instances that are fully ready for the current
+    user: the instance must be admin-enabled, the user must have enabled it,
+    and all required user-editable fields must be filled.
+
+    Unauthenticated requests always receive an empty list.
     """
-    result: list[StorageMeta] = [
-        StorageMeta(id=b.describe().id, name=b.describe().name) for b in storage_registry.all()
-    ]
+    if current_user is None:
+        return []
 
-    if current_user is not None:
-        ready = await service.list_ready_backends_for_user(
-            session,
-            user_id=current_user.id,
-            username=current_user.username,
-            template_registry=template_registry,
-        )
-        for inst, backend in ready:
-            result.append(service.backend_to_storage_meta(inst, backend))
-
-    return result
+    ready = await service.list_ready_backends_for_user(
+        session,
+        user_id=current_user.id,
+        username=current_user.username,
+        template_registry=template_registry,
+    )
+    return [service.backend_to_storage_meta(inst, backend) for inst, backend in ready]

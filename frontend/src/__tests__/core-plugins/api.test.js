@@ -15,6 +15,8 @@ import {
   uploadFile,
 } from '../../core-plugins/api';
 
+const INSTANCE_ID = 'abc-123-uuid';
+
 function mockFetch(json, ok = true, status = 200) {
   return vi.fn().mockResolvedValue({
     ok,
@@ -26,7 +28,9 @@ function mockFetch(json, ok = true, status = 200) {
 
 describe('listBackends', () => {
   it('calls /api/backends and returns json', async () => {
-    const backends = [{ id: 'storage_local', name: 'Local' }];
+    const backends = [
+      { id: INSTANCE_ID, name: 'My Local', plugin_id: 'storage_local', instance_id: INSTANCE_ID },
+    ];
     global.fetch = mockFetch(backends);
 
     const result = await listBackends();
@@ -47,28 +51,29 @@ describe('listBackends', () => {
 describe('listDir', () => {
   it('calls /api/files/list with correct query params', async () => {
     global.fetch = mockFetch([]);
-    await listDir('/photos', 'storage_local');
+    await listDir('/photos', INSTANCE_ID);
     const url = global.fetch.mock.calls[0][0];
     expect(url).toContain('/api/files/list');
     expect(url).toContain('path=%2Fphotos');
-    expect(url).toContain('backend=storage_local');
+    expect(url).toContain(`backend=${INSTANCE_ID}`);
   });
 
-  it('uses "/" and "storage_local" as defaults', async () => {
+  it('uses "/" as the default path', async () => {
     global.fetch = mockFetch([]);
-    await listDir();
+    await listDir(undefined, INSTANCE_ID);
     const url = global.fetch.mock.calls[0][0];
     expect(url).toContain('path=%2F');
-    expect(url).toContain('backend=storage_local');
+    expect(url).toContain(`backend=${INSTANCE_ID}`);
   });
 });
 
 describe('deleteEntry', () => {
   it('sends DELETE request with correct params', async () => {
     global.fetch = mockFetch({ status: 'ok' });
-    await deleteEntry('/old.txt', 'storage_local');
+    await deleteEntry('/old.txt', INSTANCE_ID);
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/delete');
+    expect(url).toContain(`backend=${INSTANCE_ID}`);
     expect(opts.method).toBe('DELETE');
   });
 });
@@ -76,23 +81,24 @@ describe('deleteEntry', () => {
 describe('makeDir', () => {
   it('sends POST to mkdir with path and backend', async () => {
     global.fetch = mockFetch({ status: 'ok' });
-    await makeDir('/new-folder', 'storage_local');
+    await makeDir('/new-folder', INSTANCE_ID);
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/mkdir');
     expect(opts.method).toBe('POST');
     expect(url).toContain('new-folder');
+    expect(url).toContain(`backend=${INSTANCE_ID}`);
   });
 });
 
 describe('moveEntry', () => {
-  it('sends POST with JSON body', async () => {
+  it('sends POST with JSON body including instance UUID as backend', async () => {
     global.fetch = mockFetch({ status: 'ok' });
-    await moveEntry('/a.txt', '/b.txt', 'storage_local');
+    await moveEntry('/a.txt', '/b.txt', INSTANCE_ID);
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/move');
     expect(opts.method).toBe('POST');
     const body = JSON.parse(opts.body);
-    expect(body).toEqual({ src: '/a.txt', dst: '/b.txt', backend: 'storage_local' });
+    expect(body).toEqual({ src: '/a.txt', dst: '/b.txt', backend: INSTANCE_ID });
   });
 });
 
@@ -103,23 +109,24 @@ describe('downloadUrl', () => {
     global.fetch = vi.fn();
   });
 
-  it('returns a URL without fetching', () => {
-    const url = downloadUrl('/file.pdf', 'storage_local');
+  it('returns a URL containing the instance UUID without fetching', () => {
+    const url = downloadUrl('/file.pdf', INSTANCE_ID);
     expect(url).toContain('/api/files/download');
     expect(url).toContain('file.pdf');
-    expect(url).toContain('backend=storage_local');
+    expect(url).toContain(`backend=${INSTANCE_ID}`);
     expect(global.fetch).not.toHaveBeenCalled?.();
   });
 });
 
 describe('uploadFile', () => {
-  it('sends POST with FormData', async () => {
+  it('sends POST with FormData and instance UUID as backend', async () => {
     global.fetch = mockFetch({ status: 'ok', path: '/photo.jpg' });
     const fakeFile = new Blob(['data'], { type: 'image/jpeg' });
     fakeFile.name = 'photo.jpg';
-    await uploadFile('/uploads', fakeFile, 'storage_local');
+    await uploadFile('/uploads', fakeFile, INSTANCE_ID);
     const [url, opts] = global.fetch.mock.calls[0];
     expect(url).toContain('/api/files/upload');
+    expect(url).toContain(`backend=${INSTANCE_ID}`);
     expect(opts.method).toBe('POST');
     expect(opts.body).toBeInstanceOf(FormData);
   });

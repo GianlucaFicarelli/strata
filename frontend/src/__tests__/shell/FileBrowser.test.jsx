@@ -33,9 +33,11 @@ vi.mock('../../shell/FilePreview', () => ({
 import { listBackends, listDir } from '../../core-plugins/api';
 import FileBrowser from '../../shell/FileBrowser';
 
+// /api/backends returns only ready instance-backed backends for the current user.
+// id == instance_id because backend_to_storage_meta() uses instance.id as the routing key.
 const BACKENDS = [
-  { id: 'storage_local', name: 'Local Filesystem' },
-  { id: 's3', name: 'S3 Storage' },
+  { id: 'abc-123', name: 'My Local', plugin_id: 'storage_local', instance_id: 'abc-123' },
+  { id: 'def-456', name: 'My S3', plugin_id: 'storage_s3', instance_id: 'def-456' },
 ];
 
 const ENTRIES = [
@@ -63,12 +65,19 @@ describe('FileBrowser', () => {
     });
   });
 
-  it('shows a backend picker with all backends', async () => {
+  it('auto-selects the first ready instance backend', async () => {
     render(<FileBrowser />);
     await waitFor(() => {
-      // Ant Design Select shows the active option value
-      expect(screen.getByText('Local Filesystem')).toBeInTheDocument();
+      // Ant Design Select shows the active option label
+      expect(screen.getByText('My Local (storage_local)')).toBeInTheDocument();
     });
+  });
+
+  it('calls listDir with the instance_id (UUID), not a plugin id', async () => {
+    render(<FileBrowser />);
+    await waitFor(() => expect(listDir).toHaveBeenCalled());
+    const [, backendArg] = listDir.mock.calls[0];
+    expect(backendArg).toBe('abc-123');
   });
 
   it('renders folder entries with directory indicator', async () => {
@@ -91,7 +100,6 @@ describe('FileBrowser', () => {
     listDir.mockResolvedValue([]);
     render(<FileBrowser />);
     await waitFor(() => {
-      // Ant Design Table shows "No Data" when empty
       expect(screen.queryByText('readme.txt')).not.toBeInTheDocument();
     });
   });
@@ -124,5 +132,17 @@ describe('FileBrowser', () => {
     const refreshBtn = screen.getByText('Refresh');
     fireEvent.click(refreshBtn);
     await waitFor(() => expect(listDir).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows empty state message when /api/backends returns no ready backends', async () => {
+    // The backend only returns instances that are fully ready for the user.
+    // An empty list means the user has nothing enabled yet.
+    listBackends.mockResolvedValue([]);
+    render(<FileBrowser />);
+    await waitFor(() => {
+      expect(screen.getByText(/No storage available/i)).toBeInTheDocument();
+    });
+    // listDir must never be called when there is no active backend
+    expect(listDir).not.toHaveBeenCalled();
   });
 });

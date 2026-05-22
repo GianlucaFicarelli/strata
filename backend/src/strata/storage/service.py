@@ -325,8 +325,11 @@ def backend_to_storage_meta(
     instance: CoreStorageInstance,
     backend: StorageBackend,
 ) -> StorageMeta:
+    # The routing id sent in ?backend=<id> must be the instance UUID so that
+    # StorageBackendDep can resolve it via the DB.  backend.id is an internal
+    # implementation detail of the plugin and must not be exposed here.
     return StorageMeta(
-        id=backend.id,
+        id=instance.id,
         name=backend.name,
         plugin_id=instance.plugin_id,
         instance_id=instance.id,

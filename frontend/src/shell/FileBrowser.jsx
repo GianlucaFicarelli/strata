@@ -16,6 +16,7 @@ import {
   Card,
   Col,
   Dropdown,
+  Empty,
   Grid,
   Input,
   Modal,
@@ -57,9 +58,21 @@ function pathParts(path) {
   ];
 }
 
+/**
+ * Map the /api/backends response to Select options.
+ * The backend already filters to only ready instance-backed backends for the
+ * current user, so every entry here is safe to pass as ?backend=<id>.
+ */
+function toPickerOptions(backends) {
+  return backends.map((b) => ({
+    value: b.id,
+    label: b.plugin_id ? `${b.name} (${b.plugin_id})` : b.name,
+  }));
+}
+
 export default function FileBrowser() {
-  const [backends, setBackends] = useState([]);
-  const [activeBackend, setActiveBackend] = useState('storage_local');
+  const [pickerOptions, setPickerOptions] = useState([]);
+  const [activeBackend, setActiveBackend] = useState(null);
   const [cwd, setCwd] = useState('/');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -70,11 +83,18 @@ export default function FileBrowser() {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  // Load available backends once on mount
+  // Load available (ready) instance backends once on mount
   useEffect(() => {
     listBackends()
-      .then(setBackends)
-      .catch(() => setBackends([{ id: 'storage_local', name: 'Local Filesystem' }]));
+      .then((backends) => {
+        const opts = toPickerOptions(backends);
+        setPickerOptions(opts);
+        // Auto-select the first ready backend, if any
+        if (opts.length > 0) {
+          setActiveBackend(opts[0].value);
+        }
+      })
+      .catch(() => setPickerOptions([]));
   }, []);
 
   // Reset path when switching backends
@@ -86,6 +106,7 @@ export default function FileBrowser() {
 
   const refresh = useCallback(
     async (path = cwd, backend = activeBackend) => {
+      if (!backend) return;
       setLoading(true);
       try {
         const data = await listDir(path, backend);
@@ -100,7 +121,11 @@ export default function FileBrowser() {
   );
 
   useEffect(() => {
-    refresh(cwd, activeBackend);
+    if (activeBackend) {
+      refresh(cwd, activeBackend);
+    } else {
+      setEntries([]);
+    }
   }, [cwd, activeBackend, refresh]);
 
   const navigate = (path) => {
@@ -224,6 +249,8 @@ export default function FileBrowser() {
     },
   ].filter(Boolean);
 
+  const noBackends = pickerOptions.length === 0;
+
   return (
     <div style={{ padding: isMobile ? 12 : 24 }}>
       {/* Backend picker */}
@@ -237,91 +264,107 @@ export default function FileBrowser() {
           onChange={handleBackendChange}
           size="small"
           style={{ minWidth: 200 }}
-          options={backends.map((b) => ({
-            value: b.id,
-            label: b.plugin_id ? `${b.name} (${b.plugin_id})` : b.name,
-          }))}
+          options={pickerOptions}
+          placeholder="No storage configured"
+          disabled={noBackends}
         />
       </div>
 
-      {/* Toolbar */}
-      <Space style={{ marginBottom: 16, flexWrap: 'wrap' }}>
-        <Button icon={<ReloadOutlined />} onClick={() => refresh()}>
-          Refresh
-        </Button>
-        <Button icon={<FolderAddOutlined />} onClick={() => setMkdirVisible(true)}>
-          New Folder
-        </Button>
-        <Upload customRequest={handleUpload} showUploadList={false}>
-          <Button icon={<UploadOutlined />}>Upload</Button>
-        </Upload>
-      </Space>
-
-      {/* Breadcrumb */}
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
-        items={pathParts(cwd).map((p) => ({
-          title: (
-            <button
-              type="button"
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                color: 'inherit',
-              }}
-              onClick={() => navigate(p.path)}
-            >
-              {p.label}
-            </button>
-          ),
-        }))}
-      />
-
-      {/* File list */}
-      {isMobile ? (
-        <Row gutter={[12, 12]}>
-          {entries.map((entry) => (
-            <Col xs={12} key={entry.path}>
-              <Card
-                size="small"
-                hoverable
-                onClick={() => (entry.is_dir ? navigate(entry.path) : setPreviewFile(entry))}
-                style={{ background: '#1a1a1a', border: '1px solid #262626' }}
-              >
-                <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                  <EntryIcon entry={entry} />
-                  <div
-                    style={{
-                      fontSize: 12,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {entry.name}
-                  </div>
-                  {entry.mime && <Tag style={{ fontSize: 10 }}>{entry.mime.split('/')[1]}</Tag>}
-                </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      ) : (
-        <Table
-          dataSource={entries}
-          columns={columns}
-          rowKey="path"
-          loading={loading}
-          pagination={false}
-          size="small"
-          style={{ background: '#1a1a1a' }}
-          rowSelection={{
-            selectedRowKeys: selected ? [selected] : [],
-            onChange: (keys) => setSelected(keys[0] ?? null),
-          }}
+      {noBackends ? (
+        <Empty
+          description={
+            <span>
+              No storage available.{' '}
+              <a href="/settings/storage" style={{ color: '#4096ff' }}>
+                Enable a storage instance
+              </a>{' '}
+              in My Storage settings.
+            </span>
+          }
+          style={{ marginTop: 64 }}
         />
+      ) : (
+        <>
+          {/* Toolbar */}
+          <Space style={{ marginBottom: 16, flexWrap: 'wrap' }}>
+            <Button icon={<ReloadOutlined />} onClick={() => refresh()}>
+              Refresh
+            </Button>
+            <Button icon={<FolderAddOutlined />} onClick={() => setMkdirVisible(true)}>
+              New Folder
+            </Button>
+            <Upload customRequest={handleUpload} showUploadList={false}>
+              <Button icon={<UploadOutlined />}>Upload</Button>
+            </Upload>
+          </Space>
+
+          {/* Breadcrumb */}
+          <Breadcrumb
+            style={{ marginBottom: 16 }}
+            items={pathParts(cwd).map((p) => ({
+              title: (
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: 'inherit',
+                  }}
+                  onClick={() => navigate(p.path)}
+                >
+                  {p.label}
+                </button>
+              ),
+            }))}
+          />
+
+          {/* File list */}
+          {isMobile ? (
+            <Row gutter={[12, 12]}>
+              {entries.map((entry) => (
+                <Col xs={12} key={entry.path}>
+                  <Card
+                    size="small"
+                    hoverable
+                    onClick={() => (entry.is_dir ? navigate(entry.path) : setPreviewFile(entry))}
+                    style={{ background: '#1a1a1a', border: '1px solid #262626' }}
+                  >
+                    <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                      <EntryIcon entry={entry} />
+                      <div
+                        style={{
+                          fontSize: 12,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {entry.name}
+                      </div>
+                      {entry.mime && <Tag style={{ fontSize: 10 }}>{entry.mime.split('/')[1]}</Tag>}
+                    </Space>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          ) : (
+            <Table
+              dataSource={entries}
+              columns={columns}
+              rowKey="path"
+              loading={loading}
+              pagination={false}
+              size="small"
+              style={{ background: '#1a1a1a' }}
+              rowSelection={{
+                selectedRowKeys: selected ? [selected] : [],
+                onChange: (keys) => setSelected(keys[0] ?? null),
+              }}
+            />
+          )}
+        </>
       )}
 
       {/* File preview modal */}

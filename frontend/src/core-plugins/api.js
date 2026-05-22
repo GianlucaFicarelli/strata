@@ -33,13 +33,13 @@ export async function listBackends() {
   return res.json();
 }
 
-export async function listDir(path = '/', backend = 'storage_local') {
+export async function listDir(path = '/', backend) {
   const res = await fetch(`${BASE}/list${qs({ path, backend })}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function deleteEntry(path, backend = 'storage_local') {
+export async function deleteEntry(path, backend) {
   const res = await fetch(`${BASE}/delete${qs({ path, backend })}`, {
     method: 'DELETE',
     headers: authHeaders(),
@@ -48,7 +48,7 @@ export async function deleteEntry(path, backend = 'storage_local') {
   return res.json();
 }
 
-export async function makeDir(path, backend = 'storage_local') {
+export async function makeDir(path, backend) {
   const res = await fetch(`${BASE}/mkdir${qs({ path, backend })}`, {
     method: 'POST',
     headers: authHeaders(),
@@ -57,7 +57,7 @@ export async function makeDir(path, backend = 'storage_local') {
   return res.json();
 }
 
-export async function moveEntry(src, dst, backend = 'storage_local') {
+export async function moveEntry(src, dst, backend) {
   const res = await fetch(`${BASE}/move`, {
     method: 'POST',
     headers: jsonHeaders(),
@@ -67,14 +67,14 @@ export async function moveEntry(src, dst, backend = 'storage_local') {
   return res.json();
 }
 
-export function downloadUrl(path, backend = 'storage_local') {
+export function downloadUrl(path, backend) {
   const token = getToken();
   const params = { path, backend };
   if (token) params.token = token;
   return `${BASE}/download${qs(params)}`;
 }
 
-export async function uploadFile(path, file, backend = 'storage_local') {
+export async function uploadFile(path, file, backend) {
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${BASE}/upload${qs({ path, backend })}`, {
