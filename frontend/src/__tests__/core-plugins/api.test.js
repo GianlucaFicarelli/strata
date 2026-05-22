@@ -95,7 +95,8 @@ describe('moveEntry', () => {
     expect(url).toContain('/api/files/move');
     expect(opts.method).toBe('POST');
     const body = JSON.parse(opts.body);
-    expect(body).toEqual({ src: '/a.txt', dst: '/b.txt', backend: INSTANCE_ID });
+    expect(url).toContain(`backend=${INSTANCE_ID}`);
+    expect(body).toEqual({ src: '/a.txt', dst: '/b.txt' });
   });
 });
 

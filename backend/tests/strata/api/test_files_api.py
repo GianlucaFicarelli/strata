@@ -193,7 +193,8 @@ async def test_move_file(mem_backend: _MemoryBackend, http: AsyncClient):
     async with http as client:
         resp = await client.post(
             "/api/files/move",
-            json={"src": "/old.txt", "dst": "/new.txt", "backend": "mem"},
+            params={"backend": "mem"},
+            json={"src": "/old.txt", "dst": "/new.txt"},
         )
     assert resp.status_code == 200
     assert "/new.txt" in mem_backend._files

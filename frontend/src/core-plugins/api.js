@@ -58,10 +58,10 @@ export async function makeDir(path, backend) {
 }
 
 export async function moveEntry(src, dst, backend) {
-  const res = await fetch(`${BASE}/move`, {
+  const res = await fetch(`${BASE}/move${qs({ backend })}`, {
     method: 'POST',
     headers: jsonHeaders(),
-    body: JSON.stringify({ src, dst, backend }),
+    body: JSON.stringify({ src, dst }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

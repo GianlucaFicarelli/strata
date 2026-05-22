@@ -307,7 +307,7 @@ def user_config_to_response(
     template: StorageTemplate,
 ) -> dict[str, Any]:
     schema = template.config_schema.model_json_schema()
-    raw_user = json.loads(user_cfg.config_json) if user_cfg else {}
+    raw_user: dict[str, Any] = json.loads(user_cfg.config_json) if user_cfg else {}
     masked = mask_config(raw_user, schema)
     ready = is_instance_ready(instance, user_cfg, template) if user_cfg else False
     return {

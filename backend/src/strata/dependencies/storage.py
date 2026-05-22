@@ -18,33 +18,18 @@ from fastapi import Depends, HTTPException, Query, status
 
 from strata.dependencies.auth import CurrentUserDep
 from strata.dependencies.db import AsyncSessionDep
-from strata.dependencies.registry import StorageRegistryDep, StorageTemplateRegistryDep
+from strata.dependencies.registry import StorageTemplateRegistryDep
 from strata.plugins.protocols import StorageBackend
 from strata.storage import service
 
 
 async def storage_backend_dep(
-    storage_registry: StorageRegistryDep,
     template_registry: StorageTemplateRegistryDep,
     session: AsyncSessionDep,
     current_user: CurrentUserDep,
-    backend: Annotated[str, Query(description="Backend id or instance UUID")],
+    backend: Annotated[str, Query(description="Instance UUID")],
 ) -> StorageBackend:
-    """Resolve ``?backend=<id>`` to a StorageBackend.
-
-    Tries the static registry first, then instance lookup.
-    """
-    # 1. Static registry (plugin singletons)
-    if storage_registry._backends.get(backend):
-        return storage_registry.get(backend_id=backend)
-
-    # 2. Instance-backed lookup requires authentication
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required to access storage instances",
-        )
-
+    """Resolve ``?backend=<id>`` to a StorageBackend."""
     resolved = await service.resolve_backend_for_user(
         session,
         instance_id=backend,

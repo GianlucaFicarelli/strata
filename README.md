@@ -215,10 +215,10 @@ GET    /api/files/download?backend=storage_s3&path=/report.pdf
 POST   /api/files/upload?backend=storage_local&path=/uploads
 DELETE /api/files/delete?backend=storage_local&path=/tmp/old.txt
 POST   /api/files/mkdir?backend=storage_local&path=/new-dir
-POST   /api/files/move   body: {"src": "/a", "dst": "/b", "backend": "storage_local"}
+POST   /api/files/move?backend=storage_local   body: {"src": "/a", "dst": "/b"}
 ```
 
-`GET /api/backends` returns metadata for all registered backends. The frontend uses this
+`GET /api/storage/backends` returns metadata for all registered backends. The frontend uses this
 to populate the backend picker.
 
 ## Configuration

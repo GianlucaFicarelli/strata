@@ -28,13 +28,10 @@ class FileMoveRequest(BaseModel):
     Attributes:
         src: Backend-relative source path.
         dst: Backend-relative destination path.
-        backend: ID of the storage backend that owns both paths.
-
     """
 
     src: str
     dst: str
-    backend: str = "local"
 
 
 class FileUploadResult(BaseModel):
