@@ -2,11 +2,16 @@
 
 A lightweight in-memory ``StorageBackend`` stub is injected via
 ``app.dependency_overrides`` so no real filesystem or plugin loading is needed.
+
+``StorageBackendDep`` is overridden directly with a lambda that returns the
+stub — bypassing instance UUID lookup entirely, which is tested separately in
+``test_service.py`` and ``test_admin_api.py``.
 """
 
 from collections.abc import AsyncIterator
 
 import pytest
+import pytest_asyncio
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,14 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from strata.db.models import CoreUser
 from strata.dependencies.auth import require_current_user_dep
 from strata.dependencies.db import db_session_dep
-from strata.dependencies.registry import (
-    auth_registry_dep,
-    storage_registry_dep,
-    storage_template_registry_dep,
-)
+from strata.dependencies.registry import auth_registry_dep, storage_template_registry_dep
+from strata.dependencies.storage import storage_backend_dep
 from strata.main import app
 from strata.plugins.protocols import StorageBackend
-from strata.plugins.registry import AuthRegistry, StorageRegistry, StorageTemplateRegistry
+from strata.plugins.registry import AuthRegistry, StorageTemplateRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
 from tests.conftest import make_auth_user
@@ -118,112 +120,113 @@ def override_storage(
     db_session: AsyncSession,
     core_user: CoreUser,
 ):
-    """Override storage, template, auth and db deps for test isolation.
+    """Override deps for test isolation.
 
-    - Storage registry → single in-memory backend.
-    - Template registry → empty (no admin-created instances).
-    - Auth registry → empty (no providers → OptionalCurrentUserDep returns None).
-    - DB session → shared in-memory test session.
-
-    With an empty template registry and no authenticated user, any backend id
-    not found in the static registry will cause a 401 (auth required for
-    instance lookup), which is the correct runtime behaviour.
+    - ``storage_backend_dep`` → returns the in-memory stub unconditionally,
+      bypassing UUID lookup.  The ``?backend`` query param is still required
+      by FastAPI but its value is ignored by this override.
+    - ``storage_template_registry_dep`` → empty registry (no templates needed).
+    - ``auth_registry_dep`` → empty (no auth providers).
+    - ``require_current_user_dep`` → fixed AuthUser (alice).
+    - ``db_session_dep`` → shared in-memory test session.
     """
-    storage_reg = StorageRegistry()
-    storage_reg.add(mem_backend)
     empty_template_reg = StorageTemplateRegistry()
     empty_auth = AuthRegistry()
     user = make_auth_user(core_user, username="alice")
 
-    app.dependency_overrides[storage_registry_dep] = lambda: storage_reg
+    app.dependency_overrides[storage_backend_dep] = lambda: mem_backend
     app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
     app.dependency_overrides[auth_registry_dep] = lambda: empty_auth
     app.dependency_overrides[db_session_dep] = lambda: db_session
     app.dependency_overrides[require_current_user_dep] = lambda: user
     yield
-    app.dependency_overrides.pop(storage_registry_dep, None)
+    app.dependency_overrides.pop(storage_backend_dep, None)
     app.dependency_overrides.pop(storage_template_registry_dep, None)
     app.dependency_overrides.pop(auth_registry_dep, None)
     app.dependency_overrides.pop(db_session_dep, None)
     app.dependency_overrides.pop(require_current_user_dep, None)
 
 
-@pytest.fixture
-def http(override_storage) -> AsyncClient:
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+@pytest_asyncio.fixture
+async def http(override_storage) -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 
-async def test_list_root_empty(mem_backend: _MemoryBackend, http: AsyncClient):
-    async with http as client:
-        resp = await client.get("/api/files/list", params={"path": "/", "backend": "mem"})
+async def test_list_root_empty(http: AsyncClient):
+    resp = await http.get("/api/files/list", params={"path": "/", "backend": "mem"})
     assert resp.status_code == 200
     assert resp.json() == []
 
 
-async def test_mkdir_then_list(mem_backend: _MemoryBackend, http: AsyncClient):
-    async with http as client:
-        r1 = await client.post("/api/files/mkdir", params={"path": "/docs", "backend": "mem"})
-        assert r1.status_code == 200
-        r2 = await client.get("/api/files/list", params={"path": "/", "backend": "mem"})
+async def test_mkdir_then_list(http: AsyncClient):
+    r1 = await http.post("/api/files/mkdir", params={"path": "/docs", "backend": "mem"})
+    assert r1.status_code == 200
+    r2 = await http.get("/api/files/list", params={"path": "/", "backend": "mem"})
     entries = r2.json()
     assert any(e["name"] == "docs" and e["is_dir"] for e in entries)
 
 
-async def test_upload_then_download(mem_backend: _MemoryBackend, http: AsyncClient):
-    async with http as client:
-        r1 = await client.post(
-            "/api/files/upload",
-            params={"path": "/", "backend": "mem"},
-            files={"file": ("hello.txt", b"hello world", "text/plain")},
-        )
-        assert r1.status_code == 200
-        assert r1.json()["path"] == "/hello.txt"
-        r2 = await client.get(
-            "/api/files/download", params={"path": "/hello.txt", "backend": "mem"}
-        )
+async def test_upload_then_download(http: AsyncClient):
+    r1 = await http.post(
+        "/api/files/upload",
+        params={"path": "/", "backend": "mem"},
+        files={"file": ("hello.txt", b"hello world", "text/plain")},
+    )
+    assert r1.status_code == 200
+    assert r1.json()["path"] == "/hello.txt"
+    r2 = await http.get("/api/files/download", params={"path": "/hello.txt", "backend": "mem"})
     assert r2.status_code == 200
     assert r2.content == b"hello world"
 
 
 async def test_delete_file(mem_backend: _MemoryBackend, http: AsyncClient):
     mem_backend._files["/target.txt"] = b"bye"
-    async with http as client:
-        resp = await client.delete(
-            "/api/files/delete", params={"path": "/target.txt", "backend": "mem"}
-        )
+    resp = await http.delete("/api/files/delete", params={"path": "/target.txt", "backend": "mem"})
     assert resp.status_code == 200
     assert "/target.txt" not in mem_backend._files
 
 
 async def test_move_file(mem_backend: _MemoryBackend, http: AsyncClient):
     mem_backend._files["/old.txt"] = b"content"
-    async with http as client:
-        resp = await client.post(
-            "/api/files/move",
-            params={"backend": "mem"},
-            json={"src": "/old.txt", "dst": "/new.txt"},
-        )
+    # backend is a query param; FileMoveRequest body only carries src + dst
+    resp = await http.post(
+        "/api/files/move",
+        params={"backend": "mem"},
+        json={"src": "/old.txt", "dst": "/new.txt"},
+    )
     assert resp.status_code == 200
     assert "/new.txt" in mem_backend._files
     assert "/old.txt" not in mem_backend._files
 
 
-async def test_list_unknown_backend_unauthenticated_returns_401(override_storage):
-    """An unknown backend id with no auth token triggers 401 (instance lookup needs user)."""
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.get(
-            "/api/files/list",
-            params={"path": "/", "backend": "nonexistent"},
-        )
-    assert resp.status_code == 401
+async def test_unknown_backend_returns_400(
+    db_session: AsyncSession,
+    core_user: CoreUser,
+):
+    """An unknown instance UUID with an authenticated user returns 400."""
+    user = make_auth_user(core_user, username="alice")
+    empty_template_reg = StorageTemplateRegistry()
+
+    app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
+    app.dependency_overrides[db_session_dep] = lambda: db_session
+    app.dependency_overrides[require_current_user_dep] = lambda: user
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.get(
+                "/api/files/list",
+                params={"path": "/", "backend": "00000000-0000-0000-0000-000000000000"},
+            )
+        assert resp.status_code == 400
+    finally:
+        app.dependency_overrides.pop(storage_template_registry_dep, None)
+        app.dependency_overrides.pop(db_session_dep, None)
+        app.dependency_overrides.pop(require_current_user_dep, None)
 
 
 async def test_download_missing_file_returns_404(mem_backend: _MemoryBackend, http: AsyncClient):
-    async with http as client:
-        resp = await client.get(
-            "/api/files/download", params={"path": "/ghost.txt", "backend": "mem"}
-        )
+    resp = await http.get("/api/files/download", params={"path": "/ghost.txt", "backend": "mem"})
     assert resp.status_code == 404
