@@ -5,13 +5,14 @@ A lightweight in-memory ``StorageBackend`` stub is injected via
 """
 
 from collections.abc import AsyncIterator
-from typing import Any
 
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from strata.db.models import CoreUser
+from strata.dependencies.auth import require_current_user_dep
 from strata.dependencies.db import db_session_dep
 from strata.dependencies.registry import (
     auth_registry_dep,
@@ -21,7 +22,9 @@ from strata.dependencies.registry import (
 from strata.main import app
 from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import AuthRegistry, StorageRegistry, StorageTemplateRegistry
+from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
+from tests.conftest import make_auth_user
 
 # ── In-memory stub backend ────────────────────────────────────────────────────
 
@@ -93,8 +96,8 @@ class _MemoryBackend:
             self._dirs.discard(src)
             self._dirs.add(dst)
 
-    def describe(self) -> dict[str, Any]:
-        return {"id": self.id, "name": self.name}
+    def describe(self) -> StorageMeta:
+        return StorageMeta(id=self.id, name=self.name)
 
 
 # Protocol conformance check
@@ -110,7 +113,11 @@ def mem_backend() -> _MemoryBackend:
 
 
 @pytest.fixture
-def override_storage(mem_backend: _MemoryBackend, db_session: AsyncSession):
+def override_storage(
+    mem_backend: _MemoryBackend,
+    db_session: AsyncSession,
+    core_user: CoreUser,
+):
     """Override storage, template, auth and db deps for test isolation.
 
     - Storage registry → single in-memory backend.
@@ -126,16 +133,19 @@ def override_storage(mem_backend: _MemoryBackend, db_session: AsyncSession):
     storage_reg.add(mem_backend)
     empty_template_reg = StorageTemplateRegistry()
     empty_auth = AuthRegistry()
+    user = make_auth_user(core_user, username="alice")
 
     app.dependency_overrides[storage_registry_dep] = lambda: storage_reg
     app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
     app.dependency_overrides[auth_registry_dep] = lambda: empty_auth
     app.dependency_overrides[db_session_dep] = lambda: db_session
+    app.dependency_overrides[require_current_user_dep] = lambda: user
     yield
     app.dependency_overrides.pop(storage_registry_dep, None)
     app.dependency_overrides.pop(storage_template_registry_dep, None)
     app.dependency_overrides.pop(auth_registry_dep, None)
     app.dependency_overrides.pop(db_session_dep, None)
+    app.dependency_overrides.pop(require_current_user_dep, None)
 
 
 @pytest.fixture

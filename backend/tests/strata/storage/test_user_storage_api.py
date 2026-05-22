@@ -1,6 +1,7 @@
 """Integration tests for /api/storage/instances/* (user self-service)."""
 
 import base64
+from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
@@ -67,7 +68,7 @@ async def http_user(
     db_session: AsyncSession,
     template_registry: StorageTemplateRegistry,
     monkeypatch,
-) -> AsyncClient:
+) -> AsyncGenerator[AsyncClient]:
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
     user = make_auth_user(core_user, username="alice")
     app.dependency_overrides[require_current_user_dep] = lambda: user

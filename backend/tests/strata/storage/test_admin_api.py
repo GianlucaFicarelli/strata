@@ -1,6 +1,7 @@
 """Integration tests for /api/admin/storage/* endpoints."""
 
 import base64
+from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
@@ -66,7 +67,7 @@ async def http_admin(
     db_session: AsyncSession,
     template_registry: StorageTemplateRegistry,
     monkeypatch,
-) -> AsyncClient:
+) -> AsyncGenerator[AsyncClient]:
     _setup_overrides(core_user, db_session, template_registry, monkeypatch, is_admin=True)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
@@ -79,7 +80,7 @@ async def http_non_admin(
     db_session: AsyncSession,
     template_registry: StorageTemplateRegistry,
     monkeypatch,
-) -> AsyncClient:
+) -> AsyncGenerator[AsyncClient]:
     _setup_overrides(core_user, db_session, template_registry, monkeypatch, is_admin=False)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client

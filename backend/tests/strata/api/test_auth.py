@@ -128,7 +128,7 @@ async def test_optional_dep_returns_none_when_no_providers():
     # avoiding the full main_app lifespan and storage dependency graph.
 
     mini = FastAPI()
-    mini.dependency_overrides[auth_registry_dep] = _make_auth_registry
+    mini.dependency_overrides[auth_registry_dep] = AuthRegistry
     current_user = __import__("fastapi").Depends(optional_current_user_dep)
 
     @mini.get("/probe")
@@ -138,7 +138,7 @@ async def test_optional_dep_returns_none_when_no_providers():
     async with AsyncClient(transport=ASGITransport(app=mini), base_url="http://test") as c:
         resp = await c.get("/probe")
     # No token + no providers → user is None, endpoint returns 200
-    assert resp.status_code == 200
+    assert resp.status_code == 200, f"Unexpected status code {resp.status_code}, {resp.text}"
     assert resp.json()["user"] is None
 
 
