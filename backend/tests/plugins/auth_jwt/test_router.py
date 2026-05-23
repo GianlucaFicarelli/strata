@@ -13,9 +13,11 @@ cookie without any manual plumbing — exactly as a real browser would.
 """
 
 import pytest
+import strata_auth_jwt.models  # noqa: F401 — registers ORM models on shared Base
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from strata_auth_jwt import config as jwt_config
 from strata_auth_jwt.router import _REFRESH_COOKIE, plugin_router
 
 from strata.db.session import session_scope
@@ -25,8 +27,19 @@ from strata.dependencies.db import db_session_dep, session_factory_dep
 
 
 @pytest.fixture
-def jwt_app(session_factory: async_sessionmaker[AsyncSession]) -> FastAPI:
-    """Minimal FastAPI app with only the auth_jwt router, wired to the test DB."""
+async def jwt_app(
+    session_factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> FastAPI:
+    """Minimal FastAPI app with only the auth_jwt router, wired to the test DB.
+
+    JWT_COOKIE_SECURE is forced to False because the test transport uses
+    plain HTTP (``http://test``).  A Secure cookie is never sent by the
+    browser — or httpx — over a non-HTTPS connection, which would cause
+    every /refresh and /logout call to receive no cookie and return 401.
+    """
+    # Patch before the router module reads the settings singleton.
+    monkeypatch.setattr(jwt_config.settings, "JWT_COOKIE_SECURE", False)
+
     fa = FastAPI()
     fa.include_router(plugin_router)
     fa.dependency_overrides[session_factory_dep] = lambda: session_factory
