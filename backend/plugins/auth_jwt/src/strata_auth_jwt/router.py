@@ -54,7 +54,6 @@ from strata_auth_jwt.config import settings
 from strata_auth_jwt.models import RefreshToken, User
 from strata_auth_jwt.schemas import (
     LoginResponse,
-    RefreshRequest,
     RegisterRequest,
     UserResponse,
 )
@@ -104,18 +103,6 @@ def _clear_refresh_cookie(response: Response) -> None:
         samesite=settings.JWT_COOKIE_SAMESITE,
         path=_COOKIE_PATH,
     )
-
-
-def _resolve_refresh_token(
-    body_token: str | None,
-    cookie_token: str | None,
-) -> str | None:
-    """Return the refresh token from the cookie (preferred) or the body.
-
-    The cookie path is used by browser clients.  The body path is the
-    fallback for the OpenAPI /docs UI, which cannot set cookies.
-    """
-    return cookie_token or body_token
 
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
@@ -254,19 +241,16 @@ async def login(
 async def refresh(
     response: Response,
     session: AsyncSessionDep,
-    req: RefreshRequest = RefreshRequest(),
     cookie_token: Annotated[str | None, Cookie(alias=_REFRESH_COOKIE)] = None,
 ) -> LoginResponse:
     """Exchange a valid refresh token for a new access token.
 
-    Reads the refresh token from the HttpOnly cookie (browser clients) or from
-    the JSON body (OpenAPI UI fallback).  The old token is revoked and a new
-    cookie is set (token rotation).
+    Reads the refresh token from the HttpOnly cookie.
+    The old token is revoked and a new cookie is set (token rotation).
 
     Args:
         response: Used to set the rotated refresh-token cookie.
         session: Injected async DB session.
-        req: Optional body containing ``refresh_token`` (OpenAPI UI fallback).
         cookie_token: Refresh token from the HttpOnly cookie (preferred).
 
     Returns:
@@ -283,14 +267,11 @@ async def refresh(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    raw_token = _resolve_refresh_token(req.refresh_token, cookie_token)
-    if not raw_token:
+    if not cookie_token:
         raise _invalid
 
-    hashed = hash_refresh_token(raw_token)
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == hashed)
-    )
+    hashed = hash_refresh_token(cookie_token)
+    result = await session.execute(select(RefreshToken).where(RefreshToken.token_hash == hashed))
     matched: RefreshToken | None = result.scalar_one_or_none()
 
     if matched is None or matched.is_expired():
@@ -326,27 +307,21 @@ async def refresh(
 async def logout(
     response: Response,
     session: AsyncSessionDep,
-    req: RefreshRequest = RefreshRequest(),
     cookie_token: Annotated[str | None, Cookie(alias=_REFRESH_COOKIE)] = None,
 ) -> None:
     """Revoke the refresh token and clear the cookie.
 
-    Reads the token from the HttpOnly cookie or (fallback) from the request
-    body.  The access token remains valid until expiry — it is self-contained
-    and short-lived.
+    Reads the token from the HttpOnly cookie.
+    The access token remains valid until expiry — it is self-contained and short-lived.
 
     Args:
         response: Used to clear the refresh-token cookie.
         session: Injected async DB session.
-        req: Optional body with ``refresh_token`` (OpenAPI UI fallback).
         cookie_token: Refresh token from the HttpOnly cookie (preferred).
     """
-    raw_token = _resolve_refresh_token(req.refresh_token, cookie_token)
-    if raw_token:
-        hashed = hash_refresh_token(raw_token)
-        await session.execute(
-            delete(RefreshToken).where(RefreshToken.token_hash == hashed)
-        )
+    if cookie_token:
+        hashed = hash_refresh_token(cookie_token)
+        await session.execute(delete(RefreshToken).where(RefreshToken.token_hash == hashed))
     _clear_refresh_cookie(response)
 
 

@@ -92,9 +92,7 @@ describe('token hydration on mount', () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBe('fresh.token');
 
     // Verify refresh was called with credentials: include and no body.
-    const refreshCall = global.fetch.mock.calls.find(([url]) =>
-      url.includes('/refresh'),
-    );
+    const refreshCall = global.fetch.mock.calls.find(([url]) => url.includes('/refresh'));
     expect(refreshCall).toBeDefined();
     const [, opts] = refreshCall;
     expect(opts.credentials).toBe('include');
@@ -105,8 +103,8 @@ describe('token hydration on mount', () => {
     localStorage.setItem(TOKEN_KEY, 'expired.token');
     global.fetch = vi
       .fn()
-      .mockResolvedValueOnce({ ok: false })   // /api/auth/me
-      .mockResolvedValueOnce({ ok: false });  // /refresh
+      .mockResolvedValueOnce({ ok: false }) // /api/auth/me
+      .mockResolvedValueOnce({ ok: false }); // /refresh
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -225,7 +223,7 @@ describe('logout()', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ME_RESPONSE }) // hydration
-      .mockResolvedValueOnce({ ok: true });                                 // logout
+      .mockResolvedValueOnce({ ok: true }); // logout
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -240,7 +238,9 @@ describe('logout()', () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
 
     // Allow the fire-and-forget fetch to resolve.
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const logoutCall = global.fetch.mock.calls.find(([url]) => url.includes('/logout'));
     expect(logoutCall).toBeDefined();
@@ -262,7 +262,7 @@ describe('performRefresh()', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ME_RESPONSE }) // hydration
-      .mockResolvedValueOnce({ ok: false });                                // refresh rejected
+      .mockResolvedValueOnce({ ok: false }); // refresh rejected
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));

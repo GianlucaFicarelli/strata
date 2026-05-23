@@ -54,9 +54,7 @@ function isDirty(a, b) {
  * necessary to avoid overwriting them with the literal "********" string.
  */
 function buildSavePayload(values) {
-  return Object.fromEntries(
-    Object.entries(values).filter(([, v]) => v !== MASKED),
-  );
+  return Object.fromEntries(Object.entries(values).filter(([, v]) => v !== MASKED));
 }
 
 function InstanceCard({ inst, onUpdate }) {
@@ -185,7 +183,10 @@ function InstanceCard({ inst, onUpdate }) {
       )}
 
       {inst.is_enabled && !inst.is_ready && !dirty && (
-        <Text type="warning" style={{ fontSize: 12, display: 'block', marginTop: hasUserFields ? 12 : 0 }}>
+        <Text
+          type="warning"
+          style={{ fontSize: 12, display: 'block', marginTop: hasUserFields ? 12 : 0 }}
+        >
           {hasUserFields
             ? 'Fill in all required fields and save to activate this backend.'
             : 'This backend is not ready. Contact your administrator.'}

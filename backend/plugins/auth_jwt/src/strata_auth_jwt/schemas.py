@@ -43,21 +43,6 @@ class LoginResponse(BaseModel):
     expires_in: int  # seconds
 
 
-class RefreshRequest(BaseModel):
-    """Optional request body for ``POST /api/plugins/auth_jwt/refresh``.
-
-    The preferred path reads the refresh token from the ``strata_refresh_token``
-    HttpOnly cookie (sent automatically by the browser).  This body field is
-    accepted as a fallback so that the OpenAPI ``/docs`` UI — which cannot set
-    cookies — can still exercise the endpoint.
-
-    Attributes:
-        refresh_token: The opaque refresh token.  Omit when using the cookie.
-    """
-
-    refresh_token: str | None = None
-
-
 class UserResponse(BaseModel):
     """Public representation of a user, returned by ``GET /api/plugins/auth_jwt/me``.
 

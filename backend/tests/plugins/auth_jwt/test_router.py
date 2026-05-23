@@ -163,7 +163,7 @@ async def test_refresh_via_cookie_returns_new_access_token(http: AsyncClient):
 
         resp = await client.post("/api/plugins/auth_jwt/refresh")
 
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.text
     body = resp.json()
     assert "access_token" in body
     assert "refresh_token" not in body  # stays in cookie
@@ -200,7 +200,7 @@ async def test_refresh_via_body_fallback(http: AsyncClient):
     """The body path exists so the OpenAPI /docs UI can exercise the endpoint."""
     async with http as client:
         await _register(client)
-        login_resp = await _login(client)
+        await _login(client)
 
         # Read the cookie value directly from the client's cookie jar.
         raw_refresh = client.cookies.get(_REFRESH_COOKIE)
@@ -273,10 +273,11 @@ async def test_logout_clears_cookie(http: AsyncClient):
         await _login(client)
         assert client.cookies.get(_REFRESH_COOKIE) is not None
 
-        await client.post("/api/plugins/auth_jwt/logout")
+        resp = await client.post("/api/plugins/auth_jwt/logout")
 
     # After logout the cookie is expired/deleted by the server.
-    set_cookie = logout.headers.get("set-cookie", "") if False else ""
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert set_cookie == ""
     # Verify via behaviour: refresh after logout must fail (tested above).
     # Cookie clearing via delete_cookie sets Max-Age=0; httpx removes it.
     # We verify the functional outcome rather than cookie jar internals.

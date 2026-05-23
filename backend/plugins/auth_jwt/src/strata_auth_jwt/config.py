@@ -37,6 +37,8 @@ Note: the database URL is **not** configured here.  The plugin uses the
 shared ``STRATA_DB_URL`` from the core :mod:`strata.config` settings.
 """
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,7 +54,7 @@ class Settings(BaseSettings):
     # Cookie settings for the HttpOnly refresh-token cookie.
     # Set STRATA_JWT_COOKIE_SECURE=false for local HTTP development.
     JWT_COOKIE_SECURE: bool = True
-    JWT_COOKIE_SAMESITE: str = "strict"
+    JWT_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "strict"
 
 
 settings = Settings()
