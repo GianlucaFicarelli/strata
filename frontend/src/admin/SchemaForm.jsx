@@ -52,12 +52,15 @@ function FieldInput({ name, prop, value, onChange, readOnly }) {
   }
 
   if (isSecret) {
+    // A value of "********" is the server-side mask sentinel — display as
+    // empty so the user types a fresh password rather than appending to stars.
+    const displayValue = value === '********' ? '' : (value ?? '');
     return (
       <Input.Password
-        value={value ?? ''}
+        value={displayValue}
         onChange={(e) => onChange(name, e.target.value)}
         disabled={readOnly}
-        placeholder={readOnly ? undefined : 'Enter value'}
+        placeholder="Enter new value to change"
         suffix={suffix}
         autoComplete="new-password"
       />

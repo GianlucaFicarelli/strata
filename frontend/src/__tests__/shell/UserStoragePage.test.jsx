@@ -48,6 +48,9 @@ const PENDING_INSTANCE = {
   },
 };
 
+// Enabled but not yet ready (fields empty)
+const ENABLED_NOT_READY = { ...PENDING_INSTANCE, is_enabled: true };
+
 describe('UserStoragePage — initial load', () => {
   it('shows the page title', async () => {
     listUserInstances.mockResolvedValue([]);
@@ -119,10 +122,103 @@ describe('UserStoragePage — toggling instances', () => {
   });
 });
 
+describe('UserStoragePage — Save / Discard / dirty tracking', () => {
+  beforeEach(() => {
+    updateUserInstanceConfig.mockResolvedValue(ENABLED_NOT_READY);
+    listUserInstances.mockResolvedValue([ENABLED_NOT_READY]);
+  });
+
+  it('Save button is initially disabled (form is not dirty)', async () => {
+    render(<UserStoragePage />);
+    await waitFor(() => screen.getByText('SMB Share'));
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    expect(saveBtn).toBeDisabled();
+  });
+
+  it('Save button becomes enabled after a field is changed', async () => {
+    render(<UserStoragePage />);
+    await waitFor(() => screen.getByText('Username'));
+
+    const input = screen.getByPlaceholderText('');
+    await userEvent.type(input, 'alice');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
+    });
+  });
+
+  it('calls updateUserInstanceConfig with config (not is_enabled) when Save is clicked', async () => {
+    render(<UserStoragePage />);
+    await waitFor(() => screen.getByText('Username'));
+
+    const inputs = screen.getAllByRole('textbox');
+    await userEvent.type(inputs[0], 'alice');
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(updateUserInstanceConfig).toHaveBeenCalledWith(
+        ENABLED_NOT_READY.instance_id,
+        expect.objectContaining({ config: expect.any(Object) }),
+      );
+    });
+  });
+
+  it('does not include masked sentinel in save payload', async () => {
+    const withMasked = {
+      ...ENABLED_NOT_READY,
+      config: { username: 'alice', password: '********' },
+    };
+    listUserInstances.mockResolvedValue([withMasked]);
+    render(<UserStoragePage />);
+    await waitFor(() => screen.getByText('Username'));
+
+    // Change a non-secret field to make form dirty
+    const usernameInput = screen.getByDisplayValue('alice');
+    await userEvent.clear(usernameInput);
+    await userEvent.type(usernameInput, 'bob');
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      const [, payload] = updateUserInstanceConfig.mock.calls.at(-1);
+      // password was not changed — must be absent from payload, not "********"
+      expect(payload.config).not.toHaveProperty('password');
+      expect(payload.config.username).toBe('bob');
+    });
+  });
+
+  it('Discard resets form to saved values and disables Save', async () => {
+    render(<UserStoragePage />);
+    await waitFor(() => screen.getByText('Username'));
+
+    const inputs = screen.getAllByRole('textbox');
+    await userEvent.type(inputs[0], 'alice');
+    expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
+
+    await userEvent.click(screen.getByRole('button', { name: /discard/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    });
+  });
+
+  it('shows unsaved changes alert when form is dirty', async () => {
+    render(<UserStoragePage />);
+    await waitFor(() => screen.getByText('Username'));
+
+    const inputs = screen.getAllByRole('textbox');
+    await userEvent.type(inputs[0], 'x');
+
+    await waitFor(() => {
+      expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+    });
+  });
+});
+
 describe('UserStoragePage — warning for incomplete fields', () => {
-  it('shows a warning when instance is enabled but not ready', async () => {
-    const enabledNotReady = { ...PENDING_INSTANCE, is_enabled: true, is_ready: false };
-    listUserInstances.mockResolvedValue([enabledNotReady]);
+  it('shows a warning when instance is enabled but not ready and form is clean', async () => {
+    listUserInstances.mockResolvedValue([ENABLED_NOT_READY]);
     render(<UserStoragePage />);
     await waitFor(() => {
       expect(screen.getByText(/fill in all required fields/i)).toBeInTheDocument();
