@@ -88,6 +88,7 @@ class UserStorageConfigResponse(BaseModel):
     plugin_display_name: str
     is_enabled: bool
     config: dict[str, Any]
+    config_schema: dict[str, Any]  # JSON Schema for the template's config model
     is_ready: bool  # True when all required user_editable fields are filled
 
 

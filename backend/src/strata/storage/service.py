@@ -317,6 +317,7 @@ def user_config_to_response(
         "plugin_display_name": template.display_name,
         "is_enabled": user_cfg.is_enabled if user_cfg else False,
         "config": masked,
+        "config_schema": schema,
         "is_ready": ready,
     }
 

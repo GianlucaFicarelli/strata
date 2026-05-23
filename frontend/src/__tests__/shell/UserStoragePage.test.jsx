@@ -24,7 +24,7 @@ const READY_INSTANCE = {
   is_enabled: true,
   is_ready: true,
   config: { root: '/home/alice' },
-  schema: {
+  config_schema: {
     properties: {
       root: { type: 'string', title: 'Root Path', template: true },
     },
@@ -39,7 +39,7 @@ const PENDING_INSTANCE = {
   is_enabled: false,
   is_ready: false,
   config: { username: '', password: '' },
-  schema: {
+  config_schema: {
     properties: {
       username: { type: 'string', title: 'Username', user_editable: true },
       password: { type: 'string', title: 'Password', secret: true, user_editable: true },

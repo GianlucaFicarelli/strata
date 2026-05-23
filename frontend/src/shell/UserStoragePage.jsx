@@ -21,7 +21,8 @@ function initUserValues(schema, existingConfig) {
   );
 }
 
-function userEditableFields(schema) {
+/** Fields that are NOT user-editable — hidden entirely in the user form. */
+function nonUserEditableFields(schema) {
   return new Set(
     Object.entries(schema?.properties ?? {})
       .filter(([, prop]) => !prop.user_editable)
@@ -35,7 +36,7 @@ function InstanceCard({ inst, onUpdate }) {
 
   useEffect(() => {
     // initialise from the server-side masked config
-    setValues(initUserValues(inst.schema ?? {}, inst.config));
+    setValues(initUserValues(inst.config_schema ?? {}, inst.config));
   }, [inst]);
 
   async function handleToggle(enabled) {
@@ -53,8 +54,6 @@ function InstanceCard({ inst, onUpdate }) {
   async function handleFieldChange(name, value) {
     const next = { ...values, [name]: value };
     setValues(next);
-    // Debounce is fine for a settings page; for now save on each change.
-    // In a real app you'd add a Save button.
     try {
       await updateUserInstanceConfig(inst.instance_id, { config: next });
       onUpdate();
@@ -62,6 +61,10 @@ function InstanceCard({ inst, onUpdate }) {
       message.error(e.message);
     }
   }
+
+  const hasUserFields =
+    inst.config_schema &&
+    Object.values(inst.config_schema.properties ?? {}).some((p) => p.user_editable);
 
   const statusIcon = inst.is_ready ? (
     <CheckCircleOutlined style={{ color: '#52c41a' }} />
@@ -84,19 +87,21 @@ function InstanceCard({ inst, onUpdate }) {
         </div>
       }
     >
-      {inst.is_enabled && inst.schema && (
+      {inst.is_enabled && hasUserFields && (
         <Form layout="vertical" size="small">
           <SchemaForm
-            schema={inst.schema}
+            schema={inst.config_schema}
             values={values}
             onChange={handleFieldChange}
-            readonlyFields={userEditableFields(inst.schema)}
+            hideFields={nonUserEditableFields(inst.config_schema)}
           />
         </Form>
       )}
       {inst.is_enabled && !inst.is_ready && (
         <Text type="warning" style={{ fontSize: 12 }}>
-          Fill in all required fields above to activate this backend.
+          {hasUserFields
+            ? 'Fill in all required fields above to activate this backend.'
+            : 'This backend is not ready. Contact your administrator.'}
         </Text>
       )}
     </Card>
