@@ -7,6 +7,11 @@
  * - refresh calls carry credentials: 'include' (no body token needed)
  * - logout() calls the revocation endpoint with credentials: 'include' (no body)
  * - proactive refresh is scheduled and fires at the right time
+ *
+ * Fake timers note
+ * ----------------
+ * vi.useFakeTimers({ shouldAdvanceTime: true }) is used so that waitFor()'s
+ * internal setInterval still resolves while setTimeout is under test control.
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -22,7 +27,9 @@ function wrapper({ children }) {
 beforeEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
-  vi.useFakeTimers();
+  // shouldAdvanceTime: true lets waitFor's internal setInterval keep ticking
+  // while we still control setTimeout for scheduling assertions.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
@@ -75,14 +82,11 @@ describe('token hydration on mount', () => {
     localStorage.setItem(TOKEN_KEY, 'expired.token');
     global.fetch = vi
       .fn()
-      // /api/auth/me fails
       .mockResolvedValueOnce({ ok: false })
-      // /api/plugins/auth_jwt/refresh succeeds (cookie sent automatically)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ access_token: 'fresh.token', expires_in: 900 }),
       })
-      // /api/auth/me with new token
       .mockResolvedValueOnce({ ok: true, json: async () => ME_RESPONSE });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
@@ -91,7 +95,6 @@ describe('token hydration on mount', () => {
     expect(result.current.user).toEqual(ME_RESPONSE);
     expect(localStorage.getItem(TOKEN_KEY)).toBe('fresh.token');
 
-    // Verify refresh was called with credentials: include and no body.
     const refreshCall = global.fetch.mock.calls.find(([url]) => url.includes('/refresh'));
     expect(refreshCall).toBeDefined();
     const [, opts] = refreshCall;
@@ -127,7 +130,7 @@ describe('token hydration on mount', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Set up the refresh mock for when the timer fires (at 900 - 60 = 840 s).
+    // Override fetch for the refresh call (at 900 - 60 = 840 s).
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ access_token: 'rotated.token', expires_in: 900 }),
@@ -135,7 +138,8 @@ describe('token hydration on mount', () => {
 
     await act(async () => {
       vi.advanceTimersByTime(841_000);
-      await Promise.resolve();
+      // Flush the async fetch chain triggered by the timer.
+      await new Promise((r) => setTimeout(r, 0));
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
@@ -154,7 +158,6 @@ describe('login()', () => {
       .fn()
       .mockResolvedValueOnce({
         ok: true,
-        // Server no longer sends refresh_token in the body — it's in the cookie.
         json: async () => ({ access_token: 'new.jwt', token_type: 'bearer', expires_in: 900 }),
       })
       .mockResolvedValueOnce({
@@ -171,7 +174,7 @@ describe('login()', () => {
 
     expect(result.current.token).toBe('new.jwt');
     expect(localStorage.getItem(TOKEN_KEY)).toBe('new.jwt');
-    // No refresh token in localStorage — it lives in the HttpOnly cookie.
+    // Refresh token must NOT be in localStorage — it lives in the HttpOnly cookie.
     expect(localStorage.getItem('strata_refresh_token')).toBeNull();
   });
 
@@ -231,16 +234,13 @@ describe('logout()', () => {
 
     await act(async () => {
       await result.current.logout();
+      // Flush the fire-and-forget fetch.
+      await new Promise((r) => setTimeout(r, 0));
     });
 
     expect(result.current.user).toBeNull();
     expect(result.current.token).toBeNull();
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
-
-    // Allow the fire-and-forget fetch to resolve.
-    await act(async () => {
-      await Promise.resolve();
-    });
 
     const logoutCall = global.fetch.mock.calls.find(([url]) => url.includes('/logout'));
     expect(logoutCall).toBeDefined();
@@ -269,7 +269,7 @@ describe('performRefresh()', () => {
 
     await act(async () => {
       vi.advanceTimersByTime(841_000);
-      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
     });
 
     expect(result.current.user).toBeNull();
@@ -282,6 +282,7 @@ describe('performRefresh()', () => {
 
 describe('useAuth() guard', () => {
   it('throws when used outside AuthProvider', () => {
+    // useAuth throws synchronously during render; React re-throws from renderHook.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used inside <AuthProvider>');
     spy.mockRestore();

@@ -47,14 +47,22 @@ def http(jwt_app: FastAPI) -> AsyncClient:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-async def _register(client: AsyncClient, username: str = "alice", password: str = "password123"):
+async def _register(
+    client: AsyncClient,
+    username: str = "alice",
+    password: str = "password123",
+):
     return await client.post(
         "/api/plugins/auth_jwt/register",
         json={"username": username, "password": password},
     )
 
 
-async def _login(client: AsyncClient, username: str = "alice", password: str = "password123"):
+async def _login(
+    client: AsyncClient,
+    username: str = "alice",
+    password: str = "password123",
+):
     return await client.post(
         "/api/plugins/auth_jwt/login",
         data={"username": username, "password": password},
@@ -111,7 +119,6 @@ async def test_login_sets_httponly_refresh_cookie(http: AsyncClient):
         await _register(client)
         resp = await _login(client)
     assert resp.status_code == 200
-    # httpx exposes Set-Cookie headers; verify the cookie is present and HttpOnly.
     set_cookie = resp.headers.get("set-cookie", "")
     assert _REFRESH_COOKIE in set_cookie
     assert "httponly" in set_cookie.lower()
@@ -152,24 +159,23 @@ async def test_me_without_token_returns_401(http: AsyncClient):
     assert resp.status_code == 401
 
 
-# ── Refresh — cookie path (primary) ──────────────────────────────────────────
+# ── Refresh ───────────────────────────────────────────────────────────────────
 
 
-async def test_refresh_via_cookie_returns_new_access_token(http: AsyncClient):
+async def test_refresh_returns_new_access_token(http: AsyncClient):
     """httpx stores the Set-Cookie from login automatically; refresh sends it."""
     async with http as client:
         await _register(client)
-        await _login(client)  # cookie stored in client's cookie jar
-
+        await _login(client)
         resp = await client.post("/api/plugins/auth_jwt/refresh")
-
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 200
     body = resp.json()
     assert "access_token" in body
-    assert "refresh_token" not in body  # stays in cookie
+    # Refresh token stays in the cookie, never in the body.
+    assert "refresh_token" not in body
 
 
-async def test_refresh_via_cookie_rotates_cookie(http: AsyncClient):
+async def test_refresh_rotates_cookie(http: AsyncClient):
     """Each refresh must issue a fresh cookie (token rotation)."""
     async with http as client:
         await _register(client)
@@ -183,71 +189,34 @@ async def test_refresh_via_cookie_rotates_cookie(http: AsyncClient):
 
     assert r1.status_code == 200
     assert r2.status_code == 200
-    # The cookie value must change on each rotation.
     assert cookie_after_first != cookie_after_second
 
 
-async def test_refresh_with_no_token_returns_401(http: AsyncClient):
+async def test_refresh_without_cookie_returns_401(http: AsyncClient):
     async with http as client:
         resp = await client.post("/api/plugins/auth_jwt/refresh")
     assert resp.status_code == 401
 
 
-# ── Refresh — body fallback (OpenAPI UI) ──────────────────────────────────────
-
-
-async def test_refresh_via_body_fallback(http: AsyncClient):
-    """The body path exists so the OpenAPI /docs UI can exercise the endpoint."""
-    async with http as client:
-        await _register(client)
-        await _login(client)
-
-        # Read the cookie value directly from the client's cookie jar.
-        raw_refresh = client.cookies.get(_REFRESH_COOKIE)
-        assert raw_refresh, "Expected refresh cookie after login"
-
-        # POST with cookie cleared, token in body instead.
-        client.cookies.clear()
-        resp = await client.post(
-            "/api/plugins/auth_jwt/refresh",
-            json={"refresh_token": raw_refresh},
-        )
-
-    assert resp.status_code == 200
-    assert "access_token" in resp.json()
-
-
 async def test_refresh_token_can_only_be_used_once(http: AsyncClient):
-    """Token rotation: reusing the same token value must fail."""
+    """Token rotation: after one refresh the old cookie value must be rejected."""
     async with http as client:
         await _register(client)
         await _login(client)
-        raw_refresh = client.cookies.get(_REFRESH_COOKIE)
 
-        # First use via body (so we control the exact token value).
-        client.cookies.clear()
-        r1 = await client.post(
-            "/api/plugins/auth_jwt/refresh",
-            json={"refresh_token": raw_refresh},
-        )
+        # Capture the cookie value before the first refresh.
+        original_cookie = client.cookies.get(_REFRESH_COOKIE)
+
+        # First refresh — succeeds, rotates the cookie.
+        r1 = await client.post("/api/plugins/auth_jwt/refresh")
         assert r1.status_code == 200
 
-        # Second use of the same token must fail.
-        client.cookies.clear()
-        r2 = await client.post(
-            "/api/plugins/auth_jwt/refresh",
-            json={"refresh_token": raw_refresh},
-        )
+        # Forcibly restore the old (now revoked) cookie value.
+        client.cookies.set(_REFRESH_COOKIE, original_cookie)
+
+        # Second use of the original cookie must fail.
+        r2 = await client.post("/api/plugins/auth_jwt/refresh")
         assert r2.status_code == 401
-
-
-async def test_refresh_with_invalid_token_returns_401(http: AsyncClient):
-    async with http as client:
-        resp = await client.post(
-            "/api/plugins/auth_jwt/refresh",
-            json={"refresh_token": "bogus_token"},
-        )
-    assert resp.status_code == 401
 
 
 # ── Logout ────────────────────────────────────────────────────────────────────
@@ -258,11 +227,10 @@ async def test_logout_revokes_refresh_token(http: AsyncClient):
         await _register(client)
         await _login(client)
 
-        logout = await client.post("/api/plugins/auth_jwt/logout")
-        assert logout.status_code == 204
+        logout_resp = await client.post("/api/plugins/auth_jwt/logout")
+        assert logout_resp.status_code == 204
 
-        # The cookie should be cleared by the server.
-        # After logout the cookie jar should not have a valid token.
+        # Cookie was cleared — refresh must now fail.
         resp = await client.post("/api/plugins/auth_jwt/refresh")
         assert resp.status_code == 401
 
@@ -273,33 +241,15 @@ async def test_logout_clears_cookie(http: AsyncClient):
         await _login(client)
         assert client.cookies.get(_REFRESH_COOKIE) is not None
 
-        resp = await client.post("/api/plugins/auth_jwt/logout")
+        logout_resp = await client.post("/api/plugins/auth_jwt/logout")
+        assert logout_resp.status_code == 204
 
-    # After logout the cookie is expired/deleted by the server.
-    set_cookie = resp.headers.get("set-cookie", "")
-    assert set_cookie == ""
-    # Verify via behaviour: refresh after logout must fail (tested above).
-    # Cookie clearing via delete_cookie sets Max-Age=0; httpx removes it.
-    # We verify the functional outcome rather than cookie jar internals.
+    # delete_cookie sets Max-Age=0; httpx removes the cookie from the jar.
+    assert http.cookies.get(_REFRESH_COOKIE) is None
 
 
-async def test_logout_via_body_fallback(http: AsyncClient):
-    """Logout also accepts the token in the body for the OpenAPI UI."""
+async def test_logout_without_cookie_is_idempotent(http: AsyncClient):
+    """Logout with no cookie must succeed silently — nothing to revoke."""
     async with http as client:
-        await _register(client)
-        await _login(client)
-        raw_refresh = client.cookies.get(_REFRESH_COOKIE)
-
-        client.cookies.clear()
-        logout = await client.post(
-            "/api/plugins/auth_jwt/logout",
-            json={"refresh_token": raw_refresh},
-        )
-        assert logout.status_code == 204
-
-        # The token must now be invalid.
-        resp = await client.post(
-            "/api/plugins/auth_jwt/refresh",
-            json={"refresh_token": raw_refresh},
-        )
-        assert resp.status_code == 401
+        resp = await client.post("/api/plugins/auth_jwt/logout")
+    assert resp.status_code == 204

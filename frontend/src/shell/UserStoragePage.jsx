@@ -158,7 +158,7 @@ function InstanceCard({ inst, onUpdate }) {
 
           {dirty && (
             <Alert
-              message="You have unsaved changes."
+              title="You have unsaved changes."
               type="warning"
               showIcon
               style={{ marginBottom: 12 }}

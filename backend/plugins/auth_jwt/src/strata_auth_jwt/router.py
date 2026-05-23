@@ -10,13 +10,13 @@ POST /api/plugins/auth_jwt/login
     response body and sets the refresh token as an HttpOnly cookie.
 
 POST /api/plugins/auth_jwt/refresh
-    Issue a new access token.  Reads the refresh token from the HttpOnly
-    cookie (preferred) or from the JSON body (fallback for the OpenAPI UI).
-    Rotates the refresh token: the old cookie is cleared and a new one is set.
+    Issue a new access token by reading the refresh token from the HttpOnly
+    cookie.  Rotates the refresh token: the old cookie is cleared and a new
+    one is set.  Requires no request body.
 
 POST /api/plugins/auth_jwt/logout
-    Revoke the refresh token.  Reads from the cookie or body; clears the
-    cookie.
+    Revoke the refresh token read from the HttpOnly cookie and clear it.
+    Requires no request body.
 
 GET  /api/plugins/auth_jwt/me
     Return the currently authenticated user's profile.
@@ -31,11 +31,11 @@ The refresh token is stored in an HttpOnly cookie named
 closes the XSS exfiltration vector that affects localStorage.
 
 Cookie attributes set in production (STRATA_JWT_COOKIE_SECURE=true):
-    HttpOnly    — not readable by JS
-    Secure      — HTTPS only
+    HttpOnly      — not readable by JS
+    Secure        — HTTPS only
     SameSite=Strict — only sent to same-origin requests (CSRF protection)
-    Path=/api/plugins/auth_jwt — scoped to refresh/logout endpoints only,
-        so the cookie is not sent on every API request.
+    Path=/api/plugins/auth_jwt — scoped to auth endpoints only, so the
+        cookie is not sent on every API request.
 
 For local HTTP development set STRATA_JWT_COOKIE_SECURE=false.
 """
@@ -52,11 +52,7 @@ from strata.dependencies.db import AsyncSessionDep
 from strata.schemas.auth import AuthUser
 from strata_auth_jwt.config import settings
 from strata_auth_jwt.models import RefreshToken, User
-from strata_auth_jwt.schemas import (
-    LoginResponse,
-    RegisterRequest,
-    UserResponse,
-)
+from strata_auth_jwt.schemas import LoginResponse, RegisterRequest, UserResponse
 from strata_auth_jwt.utils import (
     auth_user_from_token,
     create_access_token,
@@ -73,7 +69,7 @@ plugin_router = APIRouter(prefix="/api/plugins/auth_jwt", tags=["auth"])
 
 # Name of the HttpOnly cookie that carries the refresh token.
 _REFRESH_COOKIE = "strata_refresh_token"
-# Path scope: the cookie is only sent to refresh and logout endpoints.
+# Path scope: the cookie is only sent to endpoints under this prefix.
 _COOKIE_PATH = "/api/plugins/auth_jwt"
 
 
@@ -173,7 +169,7 @@ async def register(req: RegisterRequest, session: AsyncSessionDep) -> UserRespon
     await session.flush()  # populate core_user.id
 
     user = User(
-        id=core_user.id,  # share the same UUID
+        id=core_user.id,
         username=req.username,
         hashed_password=hash_password(req.password),
     )
@@ -217,16 +213,16 @@ async def login(
     if not verify_password(form.password, user.hashed_password):
         raise _auth_error
 
-    # Issue tokens.
     access_token = create_access_token(user)
     raw_refresh, refresh_hash = generate_refresh_token()
 
-    rt = RefreshToken(
-        user_id=user.id,
-        token_hash=refresh_hash,
-        expires_at=refresh_token_expiry(),
+    session.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=refresh_hash,
+            expires_at=refresh_token_expiry(),
+        )
     )
-    session.add(rt)
 
     _set_refresh_cookie(response, raw_refresh)
 
@@ -245,21 +241,21 @@ async def refresh(
 ) -> LoginResponse:
     """Exchange a valid refresh token for a new access token.
 
-    Reads the refresh token from the HttpOnly cookie.
-    The old token is revoked and a new cookie is set (token rotation).
+    Reads the refresh token exclusively from the HttpOnly cookie
+    ``strata_refresh_token``.  The old token is revoked and a fresh cookie
+    is set (token rotation).  No request body is accepted or needed.
 
     Args:
         response: Used to set the rotated refresh-token cookie.
         session: Injected async DB session.
-        cookie_token: Refresh token from the HttpOnly cookie (preferred).
+        cookie_token: Refresh token from the HttpOnly cookie.
 
     Returns:
-        A new :class:`~strata_auth_jwt.schemas.LoginResponse` with a rotated
-        refresh-token cookie.
+        A new :class:`~strata_auth_jwt.schemas.LoginResponse`.
 
     Raises:
-        HTTPException: 401 if no token is supplied, or if it is unknown,
-            expired, or already revoked.
+        HTTPException: 401 if the cookie is absent, unknown, expired, or
+            already revoked.
     """
     _invalid = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -281,18 +277,19 @@ async def refresh(
     if user is None:
         raise _invalid
 
-    # Revoke old token.
+    # Revoke the consumed token.
     await session.delete(matched)
 
-    # Issue new tokens (rotation).
+    # Issue a fresh token pair.
     access_token = create_access_token(user)
     raw_refresh, refresh_hash = generate_refresh_token()
-    new_rt = RefreshToken(
-        user_id=user.id,
-        token_hash=refresh_hash,
-        expires_at=refresh_token_expiry(),
+    session.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=refresh_hash,
+            expires_at=refresh_token_expiry(),
+        )
     )
-    session.add(new_rt)
 
     _set_refresh_cookie(response, raw_refresh)
 
@@ -311,13 +308,14 @@ async def logout(
 ) -> None:
     """Revoke the refresh token and clear the cookie.
 
-    Reads the token from the HttpOnly cookie.
-    The access token remains valid until expiry — it is self-contained and short-lived.
+    Reads the token exclusively from the HttpOnly cookie.  The access token
+    remains valid until its natural expiry — it is self-contained and
+    short-lived.  No request body is accepted or needed.
 
     Args:
         response: Used to clear the refresh-token cookie.
         session: Injected async DB session.
-        cookie_token: Refresh token from the HttpOnly cookie (preferred).
+        cookie_token: Refresh token from the HttpOnly cookie.
     """
     if cookie_token:
         hashed = hash_refresh_token(cookie_token)

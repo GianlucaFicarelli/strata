@@ -139,8 +139,9 @@ describe('UserStoragePage — Save / Discard / dirty tracking', () => {
     render(<UserStoragePage />);
     await waitFor(() => screen.getByText('Username'));
 
-    const input = screen.getByPlaceholderText('');
-    await userEvent.type(input, 'alice');
+    // The username field is a plain text input (no placeholder).
+    const textInputs = screen.getAllByRole('textbox');
+    await userEvent.type(textInputs[0], 'alice');
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
