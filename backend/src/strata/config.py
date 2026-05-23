@@ -33,6 +33,15 @@ class Settings(BaseSettings):
     # Must be set if any StorageTemplate declares secret fields.
     ENCRYPTION_KEY: str = ""
 
+    # Comma-separated list of origins allowed to make credentialed requests.
+    # In production set this to the exact origin of the frontend, e.g.
+    # STRATA_ALLOWED_ORIGINS=https://strata.example.com
+    # During local development the Vite dev server runs on a different port,
+    # so add http://localhost:5173 here.
+    # The wildcard "*" cannot be used together with credentials=true (browsers
+    # reject it), so an explicit list is always required.
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:8000"]
+
     ENTRY_POINT_GROUP: str = "strata.plugins"
     ENABLED_PLUGINS: list[str] = [
         "storage_local",

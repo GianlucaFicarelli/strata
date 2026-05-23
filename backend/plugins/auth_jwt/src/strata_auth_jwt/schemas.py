@@ -23,32 +23,39 @@ class RegisterRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """Response body for a successful ``POST /api/plugins/auth_jwt/login``.
+    """Response body for a successful ``POST /api/plugins/auth_jwt/login``
+    or ``POST /api/plugins/auth_jwt/refresh``.
 
     Attributes:
         access_token: Short-lived signed JWT.  Include in subsequent requests
             as ``Authorization: Bearer <access_token>``.
-        refresh_token: Long-lived opaque token.  Store in an ``HttpOnly``
-            cookie and use it with ``POST /api/plugins/auth_jwt/refresh`` to
-            obtain a new access token without re-entering credentials.
         token_type: Always ``"bearer"``.
         expires_in: Access token lifetime in seconds.
+
+    Note:
+        The refresh token is delivered as an ``HttpOnly`` cookie named
+        ``strata_refresh_token`` and is therefore absent from this body.
+        Storing it in the response body would expose it to JavaScript.
     """
 
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds
 
 
 class RefreshRequest(BaseModel):
-    """Request body for ``POST /api/plugins/auth_jwt/refresh``.
+    """Optional request body for ``POST /api/plugins/auth_jwt/refresh``.
+
+    The preferred path reads the refresh token from the ``strata_refresh_token``
+    HttpOnly cookie (sent automatically by the browser).  This body field is
+    accepted as a fallback so that the OpenAPI ``/docs`` UI — which cannot set
+    cookies — can still exercise the endpoint.
 
     Attributes:
-        refresh_token: The opaque refresh token previously returned by login.
+        refresh_token: The opaque refresh token.  Omit when using the cookie.
     """
 
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class UserResponse(BaseModel):

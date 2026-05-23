@@ -6,24 +6,43 @@ POST /api/plugins/auth_jwt/register
     Create a new user account.
 
 POST /api/plugins/auth_jwt/login
-    Authenticate with username/password; returns access + refresh tokens.
+    Authenticate with username/password; returns the access token in the
+    response body and sets the refresh token as an HttpOnly cookie.
 
 POST /api/plugins/auth_jwt/refresh
-    Exchange a valid refresh token for a new access token.
+    Issue a new access token.  Reads the refresh token from the HttpOnly
+    cookie (preferred) or from the JSON body (fallback for the OpenAPI UI).
+    Rotates the refresh token: the old cookie is cleared and a new one is set.
 
 POST /api/plugins/auth_jwt/logout
-    Revoke the current refresh token.
+    Revoke the refresh token.  Reads from the cookie or body; clears the
+    cookie.
 
 GET  /api/plugins/auth_jwt/me
     Return the currently authenticated user's profile.
 
 All state lives in the shared Strata database via the
 :data:`~strata.dependencies.db.AsyncSessionDep` dependency.
+
+Cookie design
+-------------
+The refresh token is stored in an HttpOnly cookie named
+``strata_refresh_token``.  HttpOnly means JavaScript cannot read it, which
+closes the XSS exfiltration vector that affects localStorage.
+
+Cookie attributes set in production (STRATA_JWT_COOKIE_SECURE=true):
+    HttpOnly    — not readable by JS
+    Secure      — HTTPS only
+    SameSite=Strict — only sent to same-origin requests (CSRF protection)
+    Path=/api/plugins/auth_jwt — scoped to refresh/logout endpoints only,
+        so the cookie is not sent on every API request.
+
+For local HTTP development set STRATA_JWT_COOKIE_SECURE=false.
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,6 +72,51 @@ _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/plugins/auth_jwt/login")
 
 plugin_router = APIRouter(prefix="/api/plugins/auth_jwt", tags=["auth"])
 
+# Name of the HttpOnly cookie that carries the refresh token.
+_REFRESH_COOKIE = "strata_refresh_token"
+# Path scope: the cookie is only sent to refresh and logout endpoints.
+_COOKIE_PATH = "/api/plugins/auth_jwt"
+
+
+# ── Cookie helpers ────────────────────────────────────────────────────────────
+
+
+def _set_refresh_cookie(response: Response, raw_refresh: str) -> None:
+    """Attach the refresh token as an HttpOnly cookie to *response*."""
+    max_age = settings.JWT_REFRESH_EXPIRE_DAYS * 86_400
+    response.set_cookie(
+        key=_REFRESH_COOKIE,
+        value=raw_refresh,
+        httponly=True,
+        secure=settings.JWT_COOKIE_SECURE,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+        path=_COOKIE_PATH,
+        max_age=max_age,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    """Delete the refresh-token cookie by expiring it immediately."""
+    response.delete_cookie(
+        key=_REFRESH_COOKIE,
+        httponly=True,
+        secure=settings.JWT_COOKIE_SECURE,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+        path=_COOKIE_PATH,
+    )
+
+
+def _resolve_refresh_token(
+    body_token: str | None,
+    cookie_token: str | None,
+) -> str | None:
+    """Return the refresh token from the cookie (preferred) or the body.
+
+    The cookie path is used by browser clients.  The body path is the
+    fallback for the OpenAPI /docs UI, which cannot set cookies.
+    """
+    return cookie_token or body_token
+
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 
@@ -61,12 +125,11 @@ async def current_user_dep(
     token: Annotated[str, Depends(_oauth2_scheme)],
     session: AsyncSessionDep,
 ) -> AuthUser:
-    """Validate the Bearer token and return the current :class:`~strata.plugins.protocols.AuthUser`.
+    """Validate the Bearer token and return the current AuthUser.
 
     Args:
         token: JWT access token from the ``Authorization`` header.
-        session: Async DB session (unused here — token is self-contained, but
-            the dependency is kept so future blocklist checks have access).
+        session: Async DB session (kept for future blocklist support).
 
     Returns:
         The authenticated :class:`~strata.plugins.protocols.AuthUser`.
@@ -134,21 +197,23 @@ async def register(req: RegisterRequest, session: AsyncSessionDep) -> UserRespon
 
 @plugin_router.post("/login")
 async def login(
+    response: Response,
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: AsyncSessionDep,
 ) -> LoginResponse:
-    """Authenticate a user and issue access + refresh tokens.
+    """Authenticate a user and issue tokens.
 
-    Uses the standard OAuth2 password form (``application/x-www-form-urlencoded``
-    with ``username`` and ``password`` fields) so it is compatible with the
-    OpenAPI UI's ``Authorize`` button and any OAuth2-aware client.
+    The access token is returned in the response body.  The refresh token is
+    delivered as an HttpOnly cookie (``strata_refresh_token``) so that
+    JavaScript cannot read it.
 
     Args:
-        form: OAuth2 password form.
+        response: FastAPI response object used to set the cookie.
+        form: OAuth2 password form (compatible with the OpenAPI /docs UI).
         session: Injected async DB session.
 
     Returns:
-        A :class:`~strata_auth_jwt.schemas.LoginResponse` with both tokens.
+        A :class:`~strata_auth_jwt.schemas.LoginResponse` with the access token.
 
     Raises:
         HTTPException: 401 if the username does not exist or the password is wrong.
@@ -176,30 +241,41 @@ async def login(
     )
     session.add(rt)
 
+    _set_refresh_cookie(response, raw_refresh)
+
     return LoginResponse(
         access_token=access_token,
-        refresh_token=raw_refresh,
         token_type="bearer",
         expires_in=settings.JWT_EXPIRE_MINUTES * 60,
     )
 
 
 @plugin_router.post("/refresh")
-async def refresh(req: RefreshRequest, session: AsyncSessionDep) -> LoginResponse:
+async def refresh(
+    response: Response,
+    session: AsyncSessionDep,
+    req: RefreshRequest = RefreshRequest(),
+    cookie_token: Annotated[str | None, Cookie(alias=_REFRESH_COOKIE)] = None,
+) -> LoginResponse:
     """Exchange a valid refresh token for a new access token.
 
-    The old refresh token is revoked and a fresh one is issued (token
-    rotation), so each refresh token can only be used once.
+    Reads the refresh token from the HttpOnly cookie (browser clients) or from
+    the JSON body (OpenAPI UI fallback).  The old token is revoked and a new
+    cookie is set (token rotation).
 
     Args:
-        req: Body containing the ``refresh_token`` string.
+        response: Used to set the rotated refresh-token cookie.
         session: Injected async DB session.
+        req: Optional body containing ``refresh_token`` (OpenAPI UI fallback).
+        cookie_token: Refresh token from the HttpOnly cookie (preferred).
 
     Returns:
-        A new :class:`~strata_auth_jwt.schemas.LoginResponse` with rotated tokens.
+        A new :class:`~strata_auth_jwt.schemas.LoginResponse` with a rotated
+        refresh-token cookie.
 
     Raises:
-        HTTPException: 401 if the token is unknown, expired, or already revoked.
+        HTTPException: 401 if no token is supplied, or if it is unknown,
+            expired, or already revoked.
     """
     _invalid = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -207,14 +283,14 @@ async def refresh(req: RefreshRequest, session: AsyncSessionDep) -> LoginRespons
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    hashed = hash_refresh_token(req.refresh_token)
+    raw_token = _resolve_refresh_token(req.refresh_token, cookie_token)
+    if not raw_token:
+        raise _invalid
 
+    hashed = hash_refresh_token(raw_token)
     result = await session.execute(
-        select(RefreshToken).where(
-            RefreshToken.token_hash == hashed,
-        )
+        select(RefreshToken).where(RefreshToken.token_hash == hashed)
     )
-
     matched: RefreshToken | None = result.scalar_one_or_none()
 
     if matched is None or matched.is_expired():
@@ -237,32 +313,41 @@ async def refresh(req: RefreshRequest, session: AsyncSessionDep) -> LoginRespons
     )
     session.add(new_rt)
 
+    _set_refresh_cookie(response, raw_refresh)
+
     return LoginResponse(
         access_token=access_token,
-        refresh_token=raw_refresh,
         token_type="bearer",
         expires_in=settings.JWT_EXPIRE_MINUTES * 60,
     )
 
 
 @plugin_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(req: RefreshRequest, session: AsyncSessionDep) -> None:
-    """Revoke the provided refresh token.
+async def logout(
+    response: Response,
+    session: AsyncSessionDep,
+    req: RefreshRequest = RefreshRequest(),
+    cookie_token: Annotated[str | None, Cookie(alias=_REFRESH_COOKIE)] = None,
+) -> None:
+    """Revoke the refresh token and clear the cookie.
 
-    The access token remains valid until expiry (it is self-contained and
-    short-lived).  Clients should discard it immediately after logout.
+    Reads the token from the HttpOnly cookie or (fallback) from the request
+    body.  The access token remains valid until expiry — it is self-contained
+    and short-lived.
 
     Args:
-        req: Body containing the ``refresh_token`` to revoke.
+        response: Used to clear the refresh-token cookie.
         session: Injected async DB session.
+        req: Optional body with ``refresh_token`` (OpenAPI UI fallback).
+        cookie_token: Refresh token from the HttpOnly cookie (preferred).
     """
-    hashed = hash_refresh_token(req.refresh_token)
-
-    await session.execute(
-        delete(RefreshToken).where(
-            RefreshToken.token_hash == hashed,
+    raw_token = _resolve_refresh_token(req.refresh_token, cookie_token)
+    if raw_token:
+        hashed = hash_refresh_token(raw_token)
+        await session.execute(
+            delete(RefreshToken).where(RefreshToken.token_hash == hashed)
         )
-    )
+    _clear_refresh_cookie(response)
 
 
 @plugin_router.get("/me")

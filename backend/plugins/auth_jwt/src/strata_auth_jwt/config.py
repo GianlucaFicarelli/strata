@@ -23,6 +23,16 @@ STRATA_JWT_REFRESH_EXPIRE_DAYS
     Lifetime of a refresh token in days.  Refresh tokens are stored server-side
     (``auth_jwt_refresh_tokens`` table) and can be revoked immediately.
 
+STRATA_JWT_COOKIE_SECURE
+    Set the ``Secure`` flag on the refresh-token cookie.  Must be ``True`` in
+    production (HTTPS only).  Set to ``False`` for local HTTP development.
+
+STRATA_JWT_COOKIE_SAMESITE
+    ``SameSite`` policy for the refresh-token cookie.  ``"strict"`` is the
+    most secure option and works when the frontend and backend share the same
+    origin (the standard Strata deployment).  Use ``"lax"`` only if you need
+    top-level navigation to carry the cookie.
+
 Note: the database URL is **not** configured here.  The plugin uses the
 shared ``STRATA_DB_URL`` from the core :mod:`strata.config` settings.
 """
@@ -39,6 +49,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_EXPIRE_DAYS: int = 30
+    # Cookie settings for the HttpOnly refresh-token cookie.
+    # Set STRATA_JWT_COOKIE_SECURE=false for local HTTP development.
+    JWT_COOKIE_SECURE: bool = True
+    JWT_COOKIE_SAMESITE: str = "strict"
 
 
 settings = Settings()

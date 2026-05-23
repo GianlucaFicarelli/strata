@@ -7,45 +7,40 @@
  *   {
  *     user:    { id, username, is_admin } | null,
  *     token:   string | null,
- *     loading: boolean,   // true while hydrating from localStorage on mount
+ *     loading: boolean,
  *     login:   async (loginUrl, username, password) => void,
  *     logout:  async () => void,
  *   }
  *
- * Token refresh design
- * --------------------
- * Access tokens are short-lived (default 15 min). A refresh token (30 days,
- * server-side, rotated on each use) is stored alongside in localStorage.
+ * Token storage
+ * -------------
+ * Access token  → localStorage['strata_token'].
+ *   Short-lived (default 15 min). Readable by JS so it can be injected into
+ *   Authorization headers.  XSS risk is mitigated by its short lifetime.
  *
- * On login and on each successful refresh, a proactive refresh is scheduled
- * via setTimeout to fire ~60 s before the access token expires. This means
- * the user never sees a 401 mid-session — the new token is in place before
- * the old one dies.
+ * Refresh token → HttpOnly cookie 'strata_refresh_token' (set by the server).
+ *   Not readable by JS at all — the browser sends it automatically on requests
+ *   to /api/plugins/auth_jwt/*.  This is the primary XSS defence.
+ *   SameSite=Strict on the cookie prevents CSRF.
  *
- * On mount, the remaining access-token lifetime is read from the JWT's exp
- * claim (decoded client-side — no library needed, JWTs are base64). If less
- * than 60 s remain the refresh fires immediately; this handles the "tab was
- * closed and reopened near expiry" case.
+ * Proactive refresh
+ * -----------------
+ * On login and on each successful refresh a setTimeout is scheduled to fire
+ * ~60 s before the access token expires.  The refresh call carries no body —
+ * the HttpOnly cookie is sent automatically by the browser.  This means the
+ * user never sees a 401 mid-session.
  *
- * If the refresh token itself is expired or revoked the user is logged out
- * cleanly (no redirect loop).
+ * On mount the remaining JWT lifetime is read from the token's exp claim
+ * (base64-decoded client-side, no library needed) and the refresh is
+ * scheduled accordingly.  If the access token is already stale the refresh
+ * fires immediately; the HttpOnly cookie handles the authentication.
  *
- * Design notes
- * ------------
- * - Both tokens are stored in localStorage under 'strata_token' and
- *   'strata_refresh_token'. For a production deployment HttpOnly cookies are
- *   more secure; switch the storage here without touching any other file.
- * - login() is generic: it calls whatever URL the active auth provider
- *   advertises. No JWT-specific code is hard-coded in the UI layer — the only
- *   JWT-aware piece is the refresh scheduling, which is gated on a refresh
- *   token being present.
+ * If the refresh token is expired or revoked the user is logged out silently.
  */
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 const TOKEN_KEY = 'strata_token';
-const REFRESH_TOKEN_KEY = 'strata_refresh_token';
-// Fire the refresh this many seconds before the access token actually expires.
 const REFRESH_BUFFER_SECONDS = 60;
 
 const AuthContext = createContext(null);
@@ -55,7 +50,6 @@ const AuthContext = createContext(null);
 /**
  * Return the number of seconds until the JWT expires, or null if the token
  * cannot be decoded or has no exp claim.
- * JWTs are base64url-encoded — no library required.
  */
 function jwtSecondsUntilExpiry(token) {
   try {
@@ -74,16 +68,23 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [loading, setLoading] = useState(true);
   const refreshTimerRef = useRef(null);
-  // Keep a ref to the latest refresh token so the timer closure is always
-  // current even after token rotation, without needing it in deps.
-  const refreshTokenRef = useRef(localStorage.getItem(REFRESH_TOKEN_KEY));
+  // Track whether we have a refresh cookie available. We can't read the
+  // HttpOnly cookie from JS — instead we mirror the flag in a ref that is
+  // set true on login/refresh and false on logout/clear.
+  const hasRefreshCookieRef = useRef(
+    // On mount: assume we have a refresh cookie if we also have an access
+    // token in localStorage (they are always written together).
+    localStorage.getItem(TOKEN_KEY) !== null,
+  );
+
+  // scheduleRefresh is defined after performRefresh — forward-ref via useRef.
+  const scheduleRefreshRef = useRef(null);
 
   // ── Internal helpers ───────────────────────────────────────────────────────
 
-  const clearTokens = useCallback(() => {
+  const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    refreshTokenRef.current = null;
+    hasRefreshCookieRef.current = false;
     setToken(null);
     setUser(null);
     if (refreshTimerRef.current) {
@@ -92,63 +93,54 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const storeTokens = useCallback((accessToken, refreshToken, expiresIn) => {
+  const applyNewAccessToken = useCallback((accessToken) => {
     localStorage.setItem(TOKEN_KEY, accessToken);
-    if (refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-      refreshTokenRef.current = refreshToken;
-    }
+    hasRefreshCookieRef.current = true;
     setToken(accessToken);
-    return expiresIn; // seconds; caller schedules the timer
   }, []);
 
-  // scheduleRefresh is defined after performRefresh — forward-ref via useRef.
-  const scheduleRefreshRef = useRef(null);
-
   const performRefresh = useCallback(async () => {
-    const rt = refreshTokenRef.current;
-    if (!rt) {
-      clearTokens();
+    if (!hasRefreshCookieRef.current) {
+      clearSession();
       return;
     }
     try {
+      // No body needed — the HttpOnly cookie is sent automatically.
+      // credentials: 'include' is required for cookies to be sent on
+      // cross-origin requests (Vite dev server vs FastAPI on different ports).
       const res = await fetch('/api/plugins/auth_jwt/refresh', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: rt }),
+        credentials: 'include',
       });
       if (!res.ok) {
-        // Refresh token expired or revoked — log the user out silently.
-        clearTokens();
+        // Refresh token expired or revoked — log out silently.
+        clearSession();
         return;
       }
       const data = await res.json();
-      storeTokens(data.access_token, data.refresh_token, data.expires_in);
-      // Schedule the next proactive refresh.
+      applyNewAccessToken(data.access_token);
       scheduleRefreshRef.current?.(data.expires_in);
     } catch {
-      // Network error — don't log out; the user may be briefly offline.
-      // The next API call will get a 401 and the user will be asked to log in.
+      // Network error — stay logged in; the next API call will surface a 401
+      // if the token is truly dead by then.
     }
-  }, [clearTokens, storeTokens]);
+  }, [clearSession, applyNewAccessToken]);
 
   const scheduleRefresh = useCallback(
     (expiresInSeconds) => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      if (!refreshTokenRef.current) return; // no refresh token — nothing to schedule
-
+      if (!hasRefreshCookieRef.current) return;
       const delayMs = Math.max(0, (expiresInSeconds - REFRESH_BUFFER_SECONDS) * 1000);
       refreshTimerRef.current = setTimeout(performRefresh, delayMs);
     },
     [performRefresh],
   );
 
-  // Wire the forward ref so performRefresh can call scheduleRefresh.
   useEffect(() => {
     scheduleRefreshRef.current = scheduleRefresh;
   }, [scheduleRefresh]);
 
-  // ── Hydrate user from a stored token on mount ──────────────────────────────
+  // ── Hydrate on mount ───────────────────────────────────────────────────────
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — runs once on mount only
   useEffect(() => {
@@ -167,17 +159,13 @@ export function AuthProvider({ children }) {
       })
       .then((u) => {
         setUser(u);
-        // Schedule a proactive refresh based on remaining JWT lifetime.
         const remaining = jwtSecondsUntilExpiry(storedToken);
-        if (remaining !== null && refreshTokenRef.current) {
-          scheduleRefresh(remaining);
-        }
+        if (remaining !== null) scheduleRefresh(remaining);
       })
       .catch(() => {
-        // Token is stale — try to refresh immediately if we have a refresh token.
-        if (refreshTokenRef.current) {
-          performRefresh().then(() => {
-            // After refresh, re-fetch the user profile with the new token.
+        // Access token stale — attempt silent refresh via the HttpOnly cookie.
+        performRefresh()
+          .then(() => {
             const newToken = localStorage.getItem(TOKEN_KEY);
             if (newToken) {
               return fetch('/api/auth/me', {
@@ -186,15 +174,12 @@ export function AuthProvider({ children }) {
                 .then((r) => r.json())
                 .then(setUser);
             }
-          }).catch(clearTokens);
-        } else {
-          clearTokens();
-        }
+          })
+          .catch(clearSession);
       })
       .finally(() => setLoading(false));
-  }, []); // run once on mount
+  }, []);
 
-  // Clean up the timer when the provider unmounts.
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -205,20 +190,21 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async (loginUrl, username, password) => {
-      const body = new URLSearchParams({ username, password });
-      const res = await fetch(loginUrl, { method: 'POST', body });
+      // credentials: 'include' so the server's Set-Cookie response header is
+      // accepted and the HttpOnly cookie is stored by the browser.
+      const res = await fetch(loginUrl, {
+        method: 'POST',
+        body: new URLSearchParams({ username, password }),
+        credentials: 'include',
+      });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(detail?.detail ?? 'Login failed');
       }
       const data = await res.json();
 
-      storeTokens(data.access_token, data.refresh_token, data.expires_in);
-
-      // Schedule proactive refresh if the provider returned a refresh token.
-      if (data.refresh_token && data.expires_in) {
-        scheduleRefresh(data.expires_in);
-      }
+      applyNewAccessToken(data.access_token);
+      if (data.expires_in) scheduleRefresh(data.expires_in);
 
       const meRes = await fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${data.access_token}` },
@@ -226,23 +212,20 @@ export function AuthProvider({ children }) {
       if (!meRes.ok) throw new Error('Could not load user profile');
       setUser(await meRes.json());
     },
-    [storeTokens, scheduleRefresh],
+    [applyNewAccessToken, scheduleRefresh],
   );
 
   // ── Logout ─────────────────────────────────────────────────────────────────
 
   const logout = useCallback(async () => {
-    const rt = refreshTokenRef.current;
-    clearTokens();
-    // Best-effort revocation — don't block the UI on network failure.
-    if (rt) {
-      fetch('/api/plugins/auth_jwt/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: rt }),
-      }).catch(() => {});
-    }
-  }, [clearTokens]);
+    clearSession();
+    // Best-effort revocation. The server reads the cookie and clears it.
+    // No body needed — the cookie is sent automatically via credentials: include.
+    fetch('/api/plugins/auth_jwt/logout', {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
+  }, [clearSession]);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, logout }}>
@@ -251,7 +234,6 @@ export function AuthProvider({ children }) {
   );
 }
 
-/** Hook: access the auth context from any component. */
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
