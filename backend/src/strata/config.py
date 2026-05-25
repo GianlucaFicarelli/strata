@@ -1,6 +1,7 @@
 """Application settings."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,7 +40,7 @@ class Settings(BaseSettings):
     SESSION_TTL_SECONDS: int = 7 * 86_400  # 7 days; renewed on every request
     SESSION_COOKIE_NAME: str = "strata_session"
     SESSION_COOKIE_SECURE: bool = True  # set False for local HTTP dev
-    SESSION_COOKIE_SAMESITE: str = "strict"
+    SESSION_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "strict"
 
     # Download token (HMAC-signed, stateless)
     DOWNLOAD_TOKEN_TTL_SECONDS: int = 300  # 5 minutes

@@ -124,6 +124,6 @@ class SessionService:
     async def ping(self) -> bool:
         """Return True if the Redis connection is healthy."""
         try:
-            return bool(await self._redis.ping())
+            return bool(await self._redis.ping())  # type: ignore
         except Exception:
             return False
