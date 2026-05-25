@@ -18,7 +18,6 @@ from strata.plugins.protocols import (
     StorageTemplate,
     ThumbProvider,
 )
-from strata.schemas.auth import AuthUser
 from strata.schemas.search import SearchResult
 
 L = logging.getLogger(__name__)
@@ -156,31 +155,48 @@ class FileHandlerRegistry:
 
 
 class AuthRegistry:
-    """Registry of :class:`~strata.plugins.protocols.AuthProvider` instances."""
+    """Registry for the active :class:`~strata.plugins.protocols.AuthProvider`.
+
+    Strata supports exactly one auth provider at a time.  Attempting to
+    register a second provider raises ``RuntimeError`` at startup so
+    misconfiguration is caught immediately rather than at first login.
+
+    The provider is responsible for credential verification and contributing
+    login/logout routes.  Session management (Redis storage, HttpOnly cookie)
+    is handled entirely by the core.
+    """
 
     def __init__(self) -> None:
-        self._providers: list[AuthProvider] = []
+        self._provider: AuthProvider | None = None
 
     def add(self, provider: AuthProvider) -> None:
-        self._providers.append(provider)
+        """Register the auth provider.
+
+        Args:
+            provider: The :class:`~strata.plugins.protocols.AuthProvider` to
+                register.
+
+        Raises:
+            RuntimeError: If a provider is already registered (only one
+                auth provider may be active at a time).
+        """
+        if self._provider is not None:
+            raise RuntimeError(
+                f"Cannot register auth provider {provider.id!r}: "
+                f"{self._provider.id!r} is already registered. "
+                "Strata supports exactly one auth provider at a time. "
+                "Check STRATA_ENABLED_PLUGINS."
+            )
+        self._provider = provider
         L.info("Registered auth provider %r (%s)", provider.id, provider.name)
 
-    async def authenticate(self, credentials: dict[str, str]) -> AuthUser | None:
-        for provider in self._providers:
-            user = await provider.authenticate(credentials)
-            if user is not None:
-                return user
-        return None
-
-    async def verify_token(self, token: str) -> AuthUser | None:
-        for provider in self._providers:
-            user = await provider.verify_token(token)
-            if user is not None:
-                return user
-        return None
+    def get(self) -> AuthProvider | None:
+        """Return the active provider, or ``None`` if none is registered."""
+        return self._provider
 
     def all(self) -> list[AuthProvider]:
-        return list(self._providers)
+        """Return a list of zero or one providers (for API compatibility)."""
+        return [self._provider] if self._provider is not None else []
 
 
 class SearchRegistry:

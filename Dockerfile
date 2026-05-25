@@ -29,9 +29,6 @@ LABEL org.opencontainers.image.title="Strata"
 LABEL org.opencontainers.image.description="Plugin-based file browser"
 LABEL org.opencontainers.image.version="0.1.0"
 
-# Install uv in runtime image for potential plugin installs at runtime
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
 WORKDIR /strata
 
 # Copy virtualenv from builder
@@ -43,10 +40,18 @@ COPY --from=frontend-builder /strata/frontend/dist ./frontend/dist
 # Make the venv the default Python
 ENV PATH="/strata/backend/.venv/bin:$PATH"
 
-# Strata configuration — override these in docker-compose or at runtime
+# Runtime configuration — override these in docker-compose.yaml or at runtime.
+#
+# STRATA_ENCRYPTION_KEY  REQUIRED — 32-byte URL-safe base64 key for AES-256-GCM
+#                         field encryption and HMAC download token signing.
+#                         Generate: python -c "from cryptography.fernet import Fernet;
+#                                   print(Fernet.generate_key().decode())"
+#
+# STRATA_REDIS_URL       Points to the Redis instance used for session storage.
+#                         Default assumes a 'redis' service in the same compose network.
 ENV STRATA_LOCAL_ROOT=/data
+ENV STRATA_REDIS_URL=redis://redis:6379/0
 ENV STRATA_COLLABORA_URL=http://collabora:9980
-ENV STRATA_COLLABORA_SECRET=change-me
 
 # Expose data volume
 VOLUME ["/data"]

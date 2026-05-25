@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from redis.asyncio import Redis
 
 from strata.api.admin import router as admin_router
 from strata.api.auth import router as auth_router
@@ -20,6 +21,7 @@ from strata.db.session import create_engine, create_session_factory
 from strata.db.utils import run_migrations
 from strata.plugins.loader import PluginLoader
 from strata.plugins.registry import PluginRegistry
+from strata.sessions.service import SessionService
 
 L = logging.getLogger(__name__)
 
@@ -39,9 +41,20 @@ def _validate_encryption_key(registry: PluginRegistry) -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[dict[str, Any]]:
+    # ── Database ──────────────────────────────────────────────────────────────
     engine = create_engine(settings.DB_URL, echo=settings.DB_ECHO)
     session_factory = create_session_factory(engine)
 
+    # ── Redis / sessions ──────────────────────────────────────────────────────
+    redis: Redis[str] = Redis.from_url(  # type: ignore[assignment]
+        settings.REDIS_URL,
+        decode_responses=True,
+    )
+    session_service = SessionService(redis, ttl_seconds=settings.SESSION_TTL_SECONDS)
+    if not await session_service.ping():
+        L.warning("Redis ping failed — sessions will not work until Redis is reachable.")
+
+    # ── Plugins ───────────────────────────────────────────────────────────────
     plugin_registry = PluginRegistry()
     plugin_loader = PluginLoader()
 
@@ -52,12 +65,12 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[dict[str, Any]]:
         enabled=settings.ENABLED_PLUGINS,
     )
 
-    # Validate encryption key after all templates are registered
     _validate_encryption_key(plugin_registry)
 
     for router in plugin_registry.routes.all_routers():
         app.include_router(router)
 
+    # ── Migrations ────────────────────────────────────────────────────────────
     for contributor in plugin_registry.db.all():
         try:
             L.warning("Running migration for contributor %r", type(contributor).__name__)
@@ -73,11 +86,15 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[dict[str, Any]]:
         "plugin_loader": plugin_loader,
         "db_engine": engine,
         "db_session_factory": session_factory,
+        "session_service": session_service,
+        "redis": redis,
     }
 
+    # ── Shutdown ──────────────────────────────────────────────────────────────
     await plugin_loader.shutdown_all()
     await engine.dispose()
-    L.info("Database engine disposed.")
+    await redis.aclose()
+    L.info("Database engine and Redis connection closed.")
 
 
 app = FastAPI(

@@ -66,7 +66,7 @@ describe('LoginGate', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => [
-        { id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' },
+        { id: 'password', name: 'Password', login_url: '/api/plugins/auth_local/login' },
       ],
     });
 
@@ -87,7 +87,7 @@ describe('LoginGate', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => [
-        { id: 'password', name: 'Password', login_url: '/api/plugins/auth_jwt/login' },
+        { id: 'password', name: 'Password', login_url: '/api/plugins/auth_local/login' },
       ],
     });
 
@@ -103,7 +103,7 @@ describe('LoginGate', () => {
 // ── LoginForm ─────────────────────────────────────────────────────────────────
 
 const PROVIDERS = [
-  { id: 'password', name: 'Password Auth', login_url: '/api/plugins/auth_jwt/login' },
+  { id: 'password', name: 'Password Auth', login_url: '/api/plugins/auth_local/login' },
 ];
 
 describe('LoginForm', () => {
@@ -152,7 +152,7 @@ describe('LoginForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith('/api/plugins/auth_jwt/login', 'alice', 'secret123');
+      expect(mockLogin).toHaveBeenCalledWith('/api/plugins/auth_local/login', 'alice', 'secret123');
     });
   });
 

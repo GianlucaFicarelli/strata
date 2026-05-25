@@ -1,280 +1,228 @@
 /**
  * Unit/integration tests for src/auth/AuthContext.jsx
  *
- * The refresh token lives in an HttpOnly cookie — JS cannot read it.
+ * The session lives entirely in an HttpOnly cookie — JS cannot read or write it.
  * Tests verify that:
- * - login() stores only the access token in localStorage (not the refresh token)
- * - refresh calls carry credentials: 'include' (no body token needed)
- * - logout() calls the revocation endpoint with credentials: 'include' (no body)
- * - proactive refresh is scheduled and fires at the right time
- *
- * Fake timers note
- * ----------------
- * vi.useFakeTimers({ shouldAdvanceTime: true }) is used so that waitFor()'s
- * internal setInterval still resolves while setTimeout is under test control.
+ * - On mount, GET /api/auth/me is called with credentials: include
+ * - If /api/auth/me returns 200, user state is populated
+ * - If /api/auth/me returns 401, user remains null (cookie absent/expired)
+ * - login() POSTs JSON to the provider's login_url and sets user from response
+ * - login() sends credentials: include (cookie is set by server Set-Cookie)
+ * - logout() clears user state and calls the revocation endpoint
+ * - No localStorage or sessionStorage is used
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '../../auth/AuthContext';
 
-const TOKEN_KEY = 'strata_token';
-
 function wrapper({ children }) {
   return <AuthProvider>{children}</AuthProvider>;
 }
 
+const ME_RESPONSE = {
+  id: 'u1',
+  username: 'alice',
+  display_name: 'Alice',
+  email: null,
+  is_admin: false,
+};
+
 beforeEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
-  // shouldAdvanceTime: true lets waitFor's internal setInterval keep ticking
-  // while we still control setTimeout for scheduling assertions.
-  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
   localStorage.clear();
-  vi.useRealTimers();
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function makeJwt(expSeconds) {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = btoa(JSON.stringify({ sub: 'u1', exp: expSeconds }));
-  return `${header}.${payload}.sig`;
-}
-
-const ME_RESPONSE = { id: 'u1', username: 'alice', is_admin: false };
 
 // ── Initial state ─────────────────────────────────────────────────────────────
 
-describe('initial state — no stored token', () => {
-  it('user is null after mount', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false });
+describe('initial state', () => {
+  it('user is null and loading is true before mount completes', () => {
+    global.fetch = vi.fn().mockReturnValue(new Promise(() => {})); // never resolves
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    expect(result.current.user).toBeNull();
+    expect(result.current.loading).toBe(true);
+  });
 
+  it('user is null after mount when no session cookie is active', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false });
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-
     expect(result.current.user).toBeNull();
-    expect(result.current.token).toBeNull();
+  });
+
+  it('calls GET /api/auth/me with credentials: include on mount', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false });
+    renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/me',
+        expect.objectContaining({ credentials: 'include' }),
+      );
+    });
   });
 });
 
-// ── Token hydration ───────────────────────────────────────────────────────────
+// ── Session hydration ─────────────────────────────────────────────────────────
 
-describe('token hydration on mount', () => {
-  it('fetches /api/auth/me with stored token and sets user', async () => {
-    localStorage.setItem(TOKEN_KEY, 'valid.jwt.token');
+describe('session hydration on mount', () => {
+  it('sets user when /api/auth/me returns 200', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ME_RESPONSE,
     });
-
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-
     expect(result.current.user).toEqual(ME_RESPONSE);
-    expect(result.current.token).toBe('valid.jwt.token');
   });
 
-  it('attempts silent refresh when /api/auth/me returns non-ok', async () => {
-    localStorage.setItem(TOKEN_KEY, 'expired.token');
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: false })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ access_token: 'fresh.token', expires_in: 900 }),
-      })
-      .mockResolvedValueOnce({ ok: true, json: async () => ME_RESPONSE });
-
+  it('leaves user null when /api/auth/me returns 401', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false });
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.user).toEqual(ME_RESPONSE);
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('fresh.token');
-
-    const refreshCall = global.fetch.mock.calls.find(([url]) => url.includes('/refresh'));
-    expect(refreshCall).toBeDefined();
-    const [, opts] = refreshCall;
-    expect(opts.credentials).toBe('include');
-    expect(opts.body).toBeUndefined();
-  });
-
-  it('clears session when /api/auth/me fails and refresh also fails', async () => {
-    localStorage.setItem(TOKEN_KEY, 'expired.token');
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: false }) // /api/auth/me
-      .mockResolvedValueOnce({ ok: false }); // /refresh
-
-    const { result } = renderHook(() => useAuth(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
     expect(result.current.user).toBeNull();
-    expect(result.current.token).toBeNull();
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
   });
 
-  it('schedules proactive refresh based on remaining JWT lifetime', async () => {
-    const expiry = Math.floor(Date.now() / 1000) + 900; // 15 min from now
-    const jwt = makeJwt(expiry);
-    localStorage.setItem(TOKEN_KEY, jwt);
-
+  it('does not touch localStorage at any point', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ME_RESPONSE,
     });
-
+    const setSpy = vi.spyOn(Storage.prototype, 'setItem');
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-
-    // Override fetch for the refresh call (at 900 - 60 = 840 s).
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ access_token: 'rotated.token', expires_in: 900 }),
-    });
-
-    await act(async () => {
-      vi.advanceTimersByTime(841_000);
-      // Flush the async fetch chain triggered by the timer.
-      await new Promise((r) => setTimeout(r, 0));
-    });
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      '/api/plugins/auth_jwt/refresh',
-      expect.objectContaining({ method: 'POST', credentials: 'include' }),
-    );
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('rotated.token');
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });
 
 // ── login() ───────────────────────────────────────────────────────────────────
 
 describe('login()', () => {
-  it('stores only the access token in localStorage (no refresh token)', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ access_token: 'new.jwt', token_type: 'bearer', expires_in: 900 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ id: 'u2', username: 'bob', is_admin: false }),
-      });
-
+  it('POSTs JSON credentials with credentials: include', async () => {
+    // Mount with no session
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false });
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => {
-      await result.current.login('/api/plugins/auth_jwt/login', 'bob', 'password123');
+    // Login call
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ME_RESPONSE,
     });
 
-    expect(result.current.token).toBe('new.jwt');
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('new.jwt');
-    // Refresh token must NOT be in localStorage — it lives in the HttpOnly cookie.
-    expect(localStorage.getItem('strata_refresh_token')).toBeNull();
-  });
-
-  it('sends login request with credentials: include', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ access_token: 'tok', expires_in: 900 }),
-      })
-      .mockResolvedValueOnce({ ok: true, json: async () => ME_RESPONSE });
-
-    const { result } = renderHook(() => useAuth(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
     await act(async () => {
-      await result.current.login('/api/plugins/auth_jwt/login', 'alice', 'pw');
+      await result.current.login('/api/plugins/auth_local/login', 'alice', 'pw');
     });
 
-    const [, opts] = global.fetch.mock.calls[0];
+    const [url, opts] = global.fetch.mock.calls[0];
+    expect(url).toBe('/api/plugins/auth_local/login');
+    expect(opts.method).toBe('POST');
     expect(opts.credentials).toBe('include');
+    expect(opts.headers['Content-Type']).toBe('application/json');
+    const body = JSON.parse(opts.body);
+    expect(body.username).toBe('alice');
+    expect(body.password).toBe('pw');
   });
 
-  it('throws and leaves user null on bad credentials', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({ detail: 'Incorrect username or password' }),
-    });
-
+  it('sets user from login response body', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false }); // mount
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ME_RESPONSE,
+    });
+
+    await act(async () => {
+      await result.current.login('/api/plugins/auth_local/login', 'alice', 'pw');
+    });
+
+    expect(result.current.user).toEqual(ME_RESPONSE);
+  });
+
+  it('throws on bad credentials and leaves user null', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false }); // mount
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ detail: 'Invalid username or password' }),
+    });
 
     await expect(
       act(async () => {
-        await result.current.login('/api/plugins/auth_jwt/login', 'bad', 'bad');
+        await result.current.login('/api/plugins/auth_local/login', 'x', 'bad');
       }),
-    ).rejects.toThrow('Incorrect username or password');
+    ).rejects.toThrow('Invalid username or password');
 
     expect(result.current.user).toBeNull();
+  });
+
+  it('stores nothing in localStorage on login', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false }); // mount
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ME_RESPONSE,
+    });
+
+    const setSpy = vi.spyOn(Storage.prototype, 'setItem');
+    await act(async () => {
+      await result.current.login('/api/plugins/auth_local/login', 'alice', 'pw');
+    });
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });
 
 // ── logout() ─────────────────────────────────────────────────────────────────
 
 describe('logout()', () => {
-  it('clears user and access token, calls revocation with credentials: include and no body', async () => {
-    localStorage.setItem(TOKEN_KEY, 'live.token');
-
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ME_RESPONSE }) // hydration
-      .mockResolvedValueOnce({ ok: true }); // logout
-
+  it('clears user and calls revocation endpoint with credentials: include', async () => {
+    // Mount with active session
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ME_RESPONSE,
+    });
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.user).not.toBeNull();
 
+    // Logout
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: true });
     await act(async () => {
       await result.current.logout();
-      // Flush the fire-and-forget fetch.
-      await new Promise((r) => setTimeout(r, 0));
     });
 
     expect(result.current.user).toBeNull();
-    expect(result.current.token).toBeNull();
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
 
     const logoutCall = global.fetch.mock.calls.find(([url]) => url.includes('/logout'));
     expect(logoutCall).toBeDefined();
     const [, opts] = logoutCall;
     expect(opts.method).toBe('POST');
     expect(opts.credentials).toBe('include');
-    // No body — the cookie is sent automatically.
-    expect(opts.body).toBeUndefined();
   });
-});
 
-// ── Proactive refresh ─────────────────────────────────────────────────────────
-
-describe('performRefresh()', () => {
-  it('logs out silently when refresh returns non-ok', async () => {
-    const expiry = Math.floor(Date.now() / 1000) + 900;
-    localStorage.setItem(TOKEN_KEY, makeJwt(expiry));
-
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ME_RESPONSE }) // hydration
-      .mockResolvedValueOnce({ ok: false }); // refresh rejected
-
+  it('clears user even if revocation request fails', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ME_RESPONSE,
+    });
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
+    global.fetch = vi.fn().mockRejectedValueOnce(new Error('network'));
     await act(async () => {
-      vi.advanceTimersByTime(841_000);
-      await new Promise((r) => setTimeout(r, 0));
+      await result.current.logout();
     });
 
     expect(result.current.user).toBeNull();
-    expect(result.current.token).toBeNull();
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
   });
 });
 
@@ -282,9 +230,10 @@ describe('performRefresh()', () => {
 
 describe('useAuth() guard', () => {
   it('throws when used outside AuthProvider', () => {
-    // useAuth throws synchronously during render; React re-throws from renderHook.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used inside <AuthProvider>');
+    expect(() => renderHook(() => useAuth())).toThrow(
+      'useAuth must be used inside <AuthProvider>',
+    );
     spy.mockRestore();
   });
 });

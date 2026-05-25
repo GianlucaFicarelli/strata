@@ -1,40 +1,27 @@
-"""Integration tests for strata.dependencies auth helpers and /api/auth/* routes.
+"""Tests for /api/auth/* routes and session-based auth dependencies."""
 
-Tests cover:
-- optional_current_user_dep: returns None when no token, None when no providers,
-  returns user when valid token, raises 401 on bad token
-- require_current_user_dep: raises 401 when no user
-- GET /api/auth/providers: returns provider list
-- GET /api/auth/me: returns user or 401
-- verify_token delegation to PasswordAuthProvider
-"""
+from typing import Any
+from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from strata_auth_jwt.models import User
-from strata_auth_jwt.providers import PasswordAuthProvider
-from strata_auth_jwt.utils import create_access_token, hash_password
 
 from strata.api.auth import router as auth_router
-from strata.db.models import CoreUser
-from strata.db.session import session_scope
-from strata.dependencies.auth import optional_current_user_dep
-from strata.dependencies.registry import (
-    auth_registry_dep,
-)
+from strata.dependencies.auth import _optional_current_user, _require_current_user
+from strata.dependencies.registry import auth_registry_dep
+from strata.dependencies.storage import storage_backend_dep
 from strata.plugins.registry import AuthRegistry
+from strata.schemas.auth import AuthUser
+from strata.sessions.deps import SessionServiceDep
+from strata.sessions.schemas import SessionData
+from strata.sessions.service import SessionService
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _make_jwt_provider(session_factory: async_sessionmaker[AsyncSession]) -> PasswordAuthProvider:
-    p = PasswordAuthProvider()
-    p.set_session_factory(session_factory)
-    return p
-
-
-def _make_auth_registry(*providers) -> AuthRegistry:
+def _make_auth_registry(*providers: Any) -> AuthRegistry:
     reg = AuthRegistry()
     for p in providers:
         reg.add(p)
@@ -48,7 +35,28 @@ def _make_app(auth_registry: AuthRegistry) -> FastAPI:
     return fa
 
 
-# ── /api/auth/providers ───────────────────────────────────────────────────────
+def _stub_provider(provider_id: str = "auth_local") -> Any:
+    class _Provider:
+        id = provider_id
+        name = "Test Provider"
+
+        def describe(self) -> dict[str, Any]:
+            return {"id": self.id, "name": self.name, "login_url": f"/api/plugins/{self.id}/login"}
+
+    return _Provider()
+
+
+def _session_data(user_id: str = "uid-123") -> SessionData:
+    return SessionData(
+        user_id=user_id,
+        username="alice",
+        display_name="Alice",
+        email=None,
+        is_admin=False,
+    )
+
+
+# ── GET /api/auth/providers ───────────────────────────────────────────────────
 
 
 async def test_list_providers_empty():
@@ -59,134 +67,103 @@ async def test_list_providers_empty():
     assert resp.json() == []
 
 
-async def test_list_providers_returns_auth_jwt(
-    session_factory: async_sessionmaker[AsyncSession],
-):
-    provider = _make_jwt_provider(session_factory)
-    app = _make_app(_make_auth_registry(provider))
+async def test_list_providers_returns_registered_provider():
+    app = _make_app(_make_auth_registry(_stub_provider()))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         resp = await c.get("/api/auth/providers")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 1
-    assert data[0]["id"] == "password"
+    assert data[0]["id"] == "auth_local"
     assert "login_url" in data[0]
 
 
-# ── /api/auth/me ──────────────────────────────────────────────────────────────
+# ── GET /api/auth/me ──────────────────────────────────────────────────────────
 
 
-async def test_me_without_token_returns_401(
-    session_factory: async_sessionmaker[AsyncSession],
-):
-    provider = _make_jwt_provider(session_factory)
-    app = _make_app(_make_auth_registry(provider))
+async def test_me_without_cookie_returns_401():
+    """No session cookie → 401."""
+    svc = AsyncMock(spec=SessionService)
+    svc.get.return_value = None
+
+    app = _make_app(_make_auth_registry())
+    app.dependency_overrides[SessionServiceDep] = lambda: svc  # type: ignore[index]
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         resp = await c.get("/api/auth/me")
     assert resp.status_code == 401
 
 
-async def test_me_with_valid_token_returns_user(
-    session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch,
-):
-    # Register a user
-    async with session_scope(session_factory) as session:
-        core = CoreUser()
-        session.add(core)
-        await session.flush()
-        db_user = User(id=core.id, username="eve", hashed_password=hash_password("pass1234"))
-        session.add(db_user)
+async def test_me_with_valid_session_returns_user():
+    """Valid session cookie → user profile."""
+    svc = AsyncMock(spec=SessionService)
+    svc.get.return_value = _session_data()
 
-    # Build a token manually (no HTTP round-trip needed)
-    token = create_access_token(db_user)
+    app = _make_app(_make_auth_registry(_stub_provider()))
 
-    provider = _make_jwt_provider(session_factory)
-    app = _make_app(_make_auth_registry(provider))
+    async def _override_session_service():
+        return svc
+
+    from strata.sessions import deps as session_deps
+    app.dependency_overrides[session_deps._session_service_dep] = _override_session_service
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        resp = await c.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        # Send the session cookie
+        c.cookies.set("strata_session", "valid-session-id")
+        resp = await c.get("/api/auth/me")
+
     assert resp.status_code == 200
-    assert resp.json()["username"] == "eve"
+    body = resp.json()
+    assert body["username"] == "alice"
+    assert body["display_name"] == "Alice"
+    assert body["is_admin"] is False
 
 
-async def test_me_with_invalid_token_returns_401(
-    session_factory: async_sessionmaker[AsyncSession],
-):
-    provider = _make_jwt_provider(session_factory)
-    app = _make_app(_make_auth_registry(provider))
+async def test_me_with_expired_session_returns_401():
+    """Session not found in Redis (expired/revoked) → 401."""
+    svc = AsyncMock(spec=SessionService)
+    svc.get.return_value = None  # Simulates expired/missing session
+
+    app = _make_app(_make_auth_registry())
+
+    from strata.sessions import deps as session_deps
+    app.dependency_overrides[session_deps._session_service_dep] = lambda: svc
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        resp = await c.get("/api/auth/me", headers={"Authorization": "Bearer bogus.token.here"})
+        c.cookies.set("strata_session", "expired-session-id")
+        resp = await c.get("/api/auth/me")
+
     assert resp.status_code == 401
 
 
-# ── optional_current_user_dep ─────────────────────────────────────────────────
+# ── AuthRegistry single-provider constraint ───────────────────────────────────
 
 
-async def test_optional_dep_returns_none_when_no_providers():
-    """With an empty AuthRegistry, the dep should return None (not raise)."""
-    # Test via a minimal FastAPI app that wires the optional dep directly,
-    # avoiding the full main_app lifespan and storage dependency graph.
-
-    mini = FastAPI()
-    mini.dependency_overrides[auth_registry_dep] = AuthRegistry
-    current_user = __import__("fastapi").Depends(optional_current_user_dep)
-
-    @mini.get("/probe")
-    async def probe(user=current_user):
-        return {"user": user}
-
-    async with AsyncClient(transport=ASGITransport(app=mini), base_url="http://test") as c:
-        resp = await c.get("/probe")
-    # No token + no providers → user is None, endpoint returns 200
-    assert resp.status_code == 200, f"Unexpected status code {resp.status_code}, {resp.text}"
-    assert resp.json()["user"] is None
-
-
-# ── AuthRegistry.verify_token ─────────────────────────────────────────────────
-
-
-async def test_auth_registry_verify_token_delegates(
-    session_factory: async_sessionmaker[AsyncSession],
-):
-    async with session_scope(session_factory) as session:
-        core = CoreUser()
-        session.add(core)
-        await session.flush()
-        db_user = User(id=core.id, username="frank", hashed_password=hash_password("x"))
-        session.add(db_user)
-
-    token = create_access_token(db_user)
-    provider = _make_jwt_provider(session_factory)
-    registry = _make_auth_registry(provider)
-
-    user = await registry.verify_token(token)
-    assert user is not None
-    assert user.username == "frank"
-
-
-async def test_auth_registry_verify_token_returns_none_for_empty_registry():
+def test_auth_registry_rejects_second_provider():
+    """AuthRegistry must raise RuntimeError when a second provider is added."""
     reg = AuthRegistry()
-    result = await reg.verify_token("any.token.value")
-    assert result is None
+    reg.add(_stub_provider("auth_local"))
+    with pytest.raises(RuntimeError, match="already registered"):
+        reg.add(_stub_provider("auth_oidc"))
 
 
-async def test_auth_provider_verify_token_default_returns_none():
-    """A provider that doesn't implement verify_token returns None (protocol default)."""
-
-    class _CredentialOnlyProvider:
-        id = "ldap"
-        name = "LDAP"
-
-        async def authenticate(self, credentials):
-            return None
-
-        async def verify_token(self, token):
-            return None
-
-        def describe(self):
-            return {}
-
+def test_auth_registry_all_returns_single_item():
     reg = AuthRegistry()
-    reg.add(_CredentialOnlyProvider())
-    result = await reg.verify_token("some.token")
-    assert result is None
+    reg.add(_stub_provider())
+    assert len(reg.all()) == 1
+
+
+def test_auth_registry_all_empty():
+    reg = AuthRegistry()
+    assert reg.all() == []
+
+
+def test_auth_registry_get_returns_none_when_empty():
+    assert AuthRegistry().get() is None
+
+
+def test_auth_registry_get_returns_provider():
+    reg = AuthRegistry()
+    p = _stub_provider()
+    reg.add(p)
+    assert reg.get() is p

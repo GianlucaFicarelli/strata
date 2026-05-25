@@ -7,20 +7,21 @@ dependencies = [
     "aiofiles>=25.1",
     "aiosqlite>=0.22.1",
     "alembic>=1.18.4",
+    "cryptography>=44.0",
     "fastapi>=0.136",
     "pydantic-settings>=2.14",
     "pydantic>=2.13",
     "python-multipart>=0.0.27",
+    "redis[hiredis]>=5.0",
     "sqlalchemy[asyncio]>=2.0",
     "uvicorn[standard]>=0.46",
-    "cryptography>=44.0",
 ]
 
 [project.optional-dependencies]
 all = [
+    "strata-auth-local",
     "strata-collabora",
     "strata-image-preview",
-    "strata-auth-jwt",
     "strata-storage-local",
     "strata-storage-s3",
     "strata-search-fulltext",
@@ -46,12 +47,12 @@ dev = [
 required-version = ">=0.9.0"
 
 [tool.uv.sources]
+strata-auth-local = { workspace = true }
 strata-image-preview = { workspace = true }
 strata-storage-local = { workspace = true }
 strata-storage-smb = { workspace = true }
 strata-storage-s3 = { workspace = true }
 strata-collabora = { workspace = true }
-strata-auth-jwt = { workspace = true }
 strata-search-fulltext = { workspace = true }
 
 [tool.uv.workspace]
@@ -91,7 +92,7 @@ venvPath = "."
 venv = ".venv"
 extraPaths = [
     "src/",
-    "plugins/auth_jwt/src/",
+    "plugins/auth_local/src/",
     "plugins/collabora/src/",
     "plugins/image_preview/src/",
     "plugins/search_fulltext/src/",
@@ -115,7 +116,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = [
     "src",
-    "plugins/auth_jwt/src",
+    "plugins/auth_local/src",
     "plugins/storage_local/src",
     "plugins/storage_smb/src",
     "plugins/storage_s3/src",
@@ -129,9 +130,9 @@ branch = true
 parallel = false
 source_pkgs = [
     "strata",
+    "strata_auth_local",
     "strata_collabora",
     "strata_image_preview",
-    "strata_auth_jwt",
     "strata_storage_local",
     "strata_storage_s3",
     "strata_search_fulltext",

@@ -20,7 +20,9 @@ Extension points
 :class:`RouteProvider`
     Contributes FastAPI routes mounted at application startup.
 :class:`AuthProvider`
-    Provides an authentication method (password, OAuth, LDAP, …).
+    Provides an authentication method.  Exactly one may be active at a time.
+    The plugin owns login/logout routes and credential verification.  Session
+    management (cookie, Redis) is handled entirely by the core.
 :class:`SearchProvider`
     Provides full-text or metadata search over a storage backend.
 :class:`ThumbProvider`
@@ -38,7 +40,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import MetaData
 
-from strata.schemas.auth import AuthUser
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
 from strata.schemas.search import SearchResult
@@ -53,7 +54,8 @@ class InstanceContext:
 
     Attributes:
         user_id: The ``core_users.id`` UUID of the requesting user.
-        username: The display/login name of the requesting user.
+        username: The login name of the requesting user as known to the active
+            auth provider (from ``AuthUser.username``).
     """
 
     user_id: str
@@ -81,8 +83,7 @@ class StorageBackend(Protocol):
     SMB UNC paths, etc.).
 
     Attributes:
-        id: Unique snake_case identifier used as the ``?backend=`` query
-            parameter value, e.g. ``"s3"``.
+        id: Unique identifier used as the ``?backend=`` query parameter value.
         name: Human-readable display name shown in the UI backend picker.
     """
 
@@ -127,25 +128,18 @@ class StorageTemplate(Protocol):
     and the core constructs a :class:`StorageBackend` at request time by
     resolving the instance config against the requesting user's context.
 
-    Plugin authors implement this alongside (or instead of) a raw
-    :class:`StorageBackend` registration.
-
     Attributes:
         plugin_id: Must match the plugin's entry-point name, e.g.
             ``"storage_local"``.  Used as the FK in ``core_storage_instances``.
         display_name: Human-readable name shown in the admin template picker.
         description: One-line description.
         config_schema: The Pydantic model class describing the admin-level
-            configuration.  Must be a subclass of ``pydantic.BaseModel``.
-            Fields support the following ``json_schema_extra`` flags:
+            configuration.  Fields support ``json_schema_extra`` flags:
 
-            - ``"secret": True`` — value is encrypted at rest; masked in
-              GET responses.
-            - ``"template": True`` — value may contain ``{username}`` /
-              ``{user_id}`` placeholders expanded at request time.
-            - ``"user_editable": True`` — user may override this field via
-              the self-service UI.  Admin sets a default; user fills it in.
-              Combine with ``"secret": True`` for passwords.
+            - ``"secret": True`` — encrypted at rest; masked in GET responses.
+            - ``"template": True`` — may contain ``{username}`` / ``{user_id}``
+              placeholders expanded at request time.
+            - ``"user_editable": True`` — user may override via self-service UI.
     """
 
     plugin_id: str
@@ -160,16 +154,11 @@ class StorageTemplate(Protocol):
     ) -> StorageBackend:
         """Construct a :class:`StorageBackend` from a resolved config.
 
-        Called once per request for each file operation on an instance-backed
-        backend.  Must be cheap (no I/O); connection setup should happen
-        lazily inside the backend's operation methods.
-
         Args:
             config: Validated instance of :attr:`config_schema` with all
                 admin-level fields set.  Secret fields are already decrypted.
                 Template fields are NOT yet expanded — call
-                ``context.expand(value)`` on string fields marked
-                ``template=True``.
+                ``context.expand(value)`` on fields marked ``template=True``.
             context: Runtime user context for template variable expansion.
 
         Returns:
@@ -197,21 +186,38 @@ class RouteProvider(Protocol):
 
 @runtime_checkable
 class AuthProvider(Protocol):
-    """Protocol for objects that authenticate users."""
+    """Protocol for objects that contribute an authentication method.
+
+    Exactly one ``AuthProvider`` may be registered at a time (enforced by
+    :class:`~strata.plugins.registry.AuthRegistry` at startup).
+
+    The provider is responsible for:
+    - Verifying credentials (username/password, OIDC code exchange, etc.)
+    - Creating users in ``core_users`` on first login (for federated providers)
+    - Contributing login/logout routes via :class:`RouteProvider`
+    - Calling :class:`~strata.sessions.service.SessionService` to create and
+      destroy sessions after credential verification
+
+    The provider does **not** manage cookies, tokens, or session storage —
+    those are owned entirely by the core.
+
+    Attributes:
+        id: Unique snake_case identifier, e.g. ``"auth_local"``.
+        name: Human-readable display name, e.g. ``"Local accounts"``.
+    """
 
     id: str
     name: str
 
-    async def authenticate(self, credentials: dict[str, str]) -> AuthUser | None:
-        """Attempt to authenticate a user from the given credentials."""
-        ...
-
-    async def verify_token(self, token: str) -> AuthUser | None:
-        """Verify a bearer token and return the corresponding user."""
-        ...
-
     def describe(self) -> dict[str, Any]:
-        """Return provider metadata for the frontend."""
+        """Return provider metadata consumed by ``GET /api/auth/providers``.
+
+        The frontend uses this to determine which login UI to render.  Must
+        include at minimum ``"id"`` and ``"name"``.
+
+        Returns:
+            Dict of metadata fields for this provider.
+        """
         ...
 
 

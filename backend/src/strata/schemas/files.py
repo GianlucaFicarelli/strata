@@ -50,3 +50,16 @@ class FileMoveResult(BaseModel):
 
 class DirectoryCreateResult(BaseModel):
     status: str
+
+
+class DownloadTokenResponse(BaseModel):
+    """Response from ``GET /api/files/download-token``.
+
+    Attributes:
+        token: HMAC-signed opaque token for use as ``?token=`` in the
+            download URL.  Valid for ``expires_in`` seconds.
+        expires_in: Token lifetime in seconds.
+    """
+
+    token: str
+    expires_in: int

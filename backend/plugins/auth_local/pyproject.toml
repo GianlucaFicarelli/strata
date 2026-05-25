@@ -1,0 +1,23 @@
+[project]
+name = "strata-auth-local"
+version = "0.1.0"
+description = "Local username/password authentication plugin for Strata."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.136",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.14",
+    "pwdlib[argon2]>=0.3.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "strata>=0.1.0",
+]
+
+[project.entry-points."strata.plugins"]
+auth_local = "strata_auth_local:plugin"
+
+[build-system]
+requires = ["uv_build>=0.11.8,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+strata = { workspace = true }

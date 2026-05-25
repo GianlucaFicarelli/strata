@@ -9,7 +9,7 @@
  * -----------------------
  * On first render (unauthenticated state) we call GET /api/auth/providers to
  * find out what login endpoint to use.  This keeps the frontend generic: it
- * works with auth_jwt today and with an OIDC provider tomorrow without any
+ * works with auth_local today and with an OIDC provider tomorrow without any
  * code change.
  *
  * If no auth providers are registered (e.g. a dev deployment with no auth

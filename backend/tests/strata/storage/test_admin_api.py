@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from strata.db.models import CoreUser
-from strata.dependencies.auth import require_current_user_dep
+from strata.dependencies.auth import _require_current_user
 from strata.dependencies.db import db_session_dep
 from strata.dependencies.registry import storage_template_registry_dep
 from strata.main import app
@@ -50,13 +50,13 @@ def _setup_overrides(core_user, db_session, template_registry, monkeypatch, *, i
     user = (
         make_admin_auth_user(core_user) if is_admin else make_auth_user(core_user, is_admin=False)
     )
-    app.dependency_overrides[require_current_user_dep] = lambda: user
+    app.dependency_overrides[_require_current_user] = lambda: user
     app.dependency_overrides[storage_template_registry_dep] = lambda: template_registry
     app.dependency_overrides[db_session_dep] = lambda: db_session
 
 
 def _teardown_overrides():
-    app.dependency_overrides.pop(require_current_user_dep, None)
+    app.dependency_overrides.pop(_require_current_user, None)
     app.dependency_overrides.pop(storage_template_registry_dep, None)
     app.dependency_overrides.pop(db_session_dep, None)
 

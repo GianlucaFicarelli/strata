@@ -1,16 +1,31 @@
 # Strata — local development / self-hosted production stack
 #
 # Services:
+#   redis       — session store (required)
 #   strata      — the main application (backend + frontend)
 #   collabora   — Collabora Online for .docx/.xlsx editing (optional)
 #
 # Usage:
 #   docker compose up                   # start everything
-#   docker compose up strata            # start without Collabora
+#   docker compose up strata redis      # start without Collabora
 #   docker compose up --build           # rebuild images first
 #   STRATA_LOCAL_ROOT=/my/files docker compose up
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: strata-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   strata:
     build:
       context: .
@@ -25,6 +40,11 @@ services:
       - "${STRATA_LOCAL_ROOT:-./data}:/data"
     environment:
       STRATA_LOCAL_ROOT: /data
+      STRATA_REDIS_URL: redis://redis:6379/0
+      STRATA_DB_URL: "sqlite+aiosqlite:////data/strata.db"
+      STRATA_ENCRYPTION_KEY: "${STRATA_ENCRYPTION_KEY}"
+      STRATA_ALLOWED_ORIGINS: "${STRATA_ALLOWED_ORIGINS:-http://localhost:8000}"
+      STRATA_SESSION_COOKIE_SECURE: "${STRATA_SESSION_COOKIE_SECURE:-true}"
       STRATA_COLLABORA_URL: http://collabora:9980
       STRATA_COLLABORA_SECRET: "${STRATA_COLLABORA_SECRET:-change-me-in-production}"
       STRATA_S3_BUCKET: "${STRATA_S3_BUCKET:-}"
@@ -32,16 +52,18 @@ services:
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
     depends_on:
+      redis:
+        condition: service_healthy
       collabora:
         condition: service_healthy
         required: false   # Strata starts even if Collabora is disabled
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/backends')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/plugins')"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
   collabora:
     # Run `docker compose --profile collabora up` to enable this service.
@@ -53,7 +75,6 @@ services:
     ports:
       - "${COLLABORA_PORT:-9980}:9980"
     environment:
-      # Allow Strata to be the WOPI host
       aliasgroup1: "http://strata:8000"
       DONT_GEN_SSL_CERT: "YES"
       server_name: "localhost:9980"
@@ -66,3 +87,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+volumes:
+  redis_data:

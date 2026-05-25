@@ -17,14 +17,14 @@ Design constraints
 
 Typical ``env.py`` for a plugin::
 
-    # strata_myplugin/migrations/env.py
-    from strata_auth_jwt.models import Base
+    # strata_auth_local/migrations/env.py
+    from strata_auth_local.models import Base
 
-    from strata.db.utils import MigrationEnv, version_table_name
+    from strata.db.utils import MigrationEnv
 
     env = MigrationEnv(
         target_metadata=Base.metadata,
-        version_table=version_table_name("auth_jwt"),
+        plugin_id="auth_local",
     )
     env.run()
 """
@@ -122,6 +122,20 @@ class MigrationEnv:
             self.run_migrations_offline()
         else:
             self.run_migrations_online()
+
+
+def version_table_name(plugin_id: str) -> str:
+    """Return the Alembic version table name for *plugin_id*.
+
+    Convenience helper used in plugin ``migrations/env.py`` files.
+
+    Args:
+        plugin_id: The plugin's entry-point name, e.g. ``"auth_local"``.
+
+    Returns:
+        The Alembic version table name e.g. ``"alembic_version_auth_local"``.
+    """
+    return f"alembic_version_{plugin_id}"
 
 
 async def run_migrations(engine: AsyncEngine, migrations_dir: Path) -> None:

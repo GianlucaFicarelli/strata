@@ -1,10 +1,11 @@
 """Shared pytest fixtures for the Strata test suite."""
 
 from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
-import strata_auth_jwt.models  # registers auth_jwt ORM models on shared Base  # noqa: F401
+import strata_auth_local.models  # registers auth_local ORM models on shared Base  # noqa: F401
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -19,13 +20,16 @@ from strata.db.session import session_scope
 from strata.main import app
 from strata.plugins.registry import PluginRegistry
 from strata.schemas.auth import AuthUser
+from strata.sessions.service import SessionService
+from strata.utils import create_uuid, utcnow
+
 
 # ── Database fixtures ─────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
 async def engine() -> AsyncGenerator[AsyncEngine]:
-    """In-memory SQLite engine with all core + auth_jwt tables."""
+    """In-memory SQLite engine with all core + auth_local tables."""
     eng = create_async_engine("sqlite+aiosqlite://", echo=False)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -51,7 +55,15 @@ async def db_session(
 @pytest_asyncio.fixture
 async def core_user(db_session: AsyncSession) -> CoreUser:
     """A persisted CoreUser for tests that need an existing user."""
-    user = CoreUser()
+    now = utcnow()
+    user = CoreUser(
+        id=create_uuid(),
+        display_name="Alice",
+        email=None,
+        is_admin=False,
+        created_at=now,
+        updated_at=now,
+    )
     db_session.add(user)
     await db_session.flush()
     return user
@@ -59,24 +71,50 @@ async def core_user(db_session: AsyncSession) -> CoreUser:
 
 @pytest_asyncio.fixture
 async def admin_user(db_session: AsyncSession) -> CoreUser:
-    """A persisted CoreUser designated as admin (for auth override use)."""
-    user = CoreUser()
+    """A persisted CoreUser designated as admin."""
+    now = utcnow()
+    user = CoreUser(
+        id=create_uuid(),
+        display_name="Admin",
+        email="admin@example.com",
+        is_admin=True,
+        created_at=now,
+        updated_at=now,
+    )
     db_session.add(user)
     await db_session.flush()
     return user
 
 
-# ── AuthUser helpers ──────────────────────────────────────────────────────────
+# ── AuthUser / session helpers ────────────────────────────────────────────────
 
 
 def make_auth_user(
-    core_user: CoreUser, *, username: str = "alice", is_admin: bool = False
+    core_user: CoreUser,
+    *,
+    username: str = "alice",
+    is_admin: bool = False,
 ) -> AuthUser:
-    return AuthUser(id=core_user.id, username=username, is_admin=is_admin)
+    return AuthUser(
+        id=core_user.id,
+        username=username,
+        display_name=core_user.display_name,
+        email=core_user.email,
+        is_admin=is_admin,
+    )
 
 
 def make_admin_auth_user(core_user: CoreUser, *, username: str = "admin") -> AuthUser:
     return make_auth_user(core_user, username=username, is_admin=True)
+
+
+def make_mock_session_service() -> SessionService:
+    """Return a SessionService mock that accepts any call without Redis."""
+    svc = AsyncMock(spec=SessionService)
+    svc.create.return_value = "test-session-id-64chars-placeholder-00000000000000000000000000000"
+    svc.get.return_value = None  # No active session by default
+    svc.ping.return_value = True
+    return svc
 
 
 # ── FastAPI / httpx fixtures ──────────────────────────────────────────────────

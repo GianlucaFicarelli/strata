@@ -1,92 +1,129 @@
 """Authentication dependencies.
 
-Two generic auth dependencies are provided, both backend-agnostic:
+The core authentication dependencies read the session cookie set by whichever
+auth plugin is active (e.g. ``auth_local``).  The cookie value is an opaque
+session ID; the actual user data is retrieved from Redis via
+:class:`~strata.sessions.service.SessionService`.
+
+Two variants are provided:
 
 :data:`OptionalCurrentUserDep`
-    Resolves to the authenticated :class:`~strata.schemas.auth.AuthUser`
-    if a valid ``Authorization: Bearer`` token is present, or ``None`` if the
-    header is absent or no auth plugin is loaded.  Use this for endpoints that
-    work for both anonymous and authenticated callers (e.g. public reads).
+    Resolves to the authenticated :class:`~strata.schemas.auth.AuthUser` if a
+    valid session cookie is present, or ``None`` otherwise.  Use for endpoints
+    that serve both anonymous and authenticated callers.
 
 :data:`CurrentUserDep`
     Like ``OptionalCurrentUserDep`` but raises **HTTP 401** when no valid
-    token is present.  Use this for endpoints that require authentication.
+    session is present.  Use for all endpoints that require authentication.
 
-The core never imports any specific auth plugin.  Token verification is delegated
-to :meth:`~strata.plugins.registry.AuthRegistry.verify_token`, which tries
-each registered ``AuthProvider`` in order.  Swapping JWT for OIDC or adding
-a second provider requires no changes here.
+The core never imports any specific auth plugin.  Session storage and retrieval
+are handled entirely by :class:`~strata.sessions.service.SessionService`.
 """
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Cookie, Depends, HTTPException, status
 
-from strata.dependencies.registry import AuthRegistryDep
+from strata.config import settings
 from strata.schemas.auth import AuthUser
-
-# HTTPBearer with auto_error=False so we can return None for unauthenticated
-# requests rather than raising immediately.  The require_* variant does the
-# 401 raise itself after checking all providers.
-_bearer = HTTPBearer(auto_error=False)
+from strata.sessions.deps import SessionServiceDep
+from strata.sessions.service import SessionService
 
 
-async def optional_current_user_dep(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-    auth_registry: AuthRegistryDep,
+async def _optional_current_user(
+    session_service: SessionServiceDep,
+    session_id: Annotated[str | None, Cookie(alias=settings.SESSION_COOKIE_NAME)] = None,
 ) -> AuthUser | None:
-    """Return the authenticated user if a valid bearer token is present.
-
-    Tries every registered ``AuthProvider.verify_token()`` in order.
-    Returns ``None`` when:
-
-    - No ``Authorization`` header is present.
-    - No auth plugin is loaded.
-    - No provider recognises the token (all returned ``None``).
-
-    Raises HTTP 401 when a provider explicitly rejects the token (expired,
-    tampered, etc.).
+    """Return the authenticated user from the session cookie, or None.
 
     Args:
-        credentials: Parsed ``Authorization: Bearer <token>`` header, or
-            ``None`` if the header is absent.
-        auth_registry: The application-wide auth provider registry.
+        session_service: Application-wide Redis-backed session service.
+        session_id: Value of the ``strata_session`` HttpOnly cookie.
 
     Returns:
-        The authenticated :class:`~strata.plugins.protocols.AuthUser`, or
-        ``None``.
+        :class:`~strata.schemas.auth.AuthUser` if the session is valid,
+        ``None`` if the cookie is absent or the session has expired.
     """
-    if credentials is None:
+    if not session_id:
         return None
-    return await auth_registry.verify_token(credentials.credentials)
+    data = await session_service.get(session_id)
+    if data is None:
+        return None
+    return AuthUser(
+        id=data.user_id,
+        username=data.username,
+        display_name=data.display_name,
+        email=data.email,
+        is_admin=data.is_admin,
+    )
 
 
-async def require_current_user_dep(
-    user: Annotated[AuthUser | None, Depends(optional_current_user_dep)],
+async def _require_current_user(
+    user: Annotated[AuthUser | None, Depends(_optional_current_user)],
 ) -> AuthUser:
     """Return the authenticated user or raise HTTP 401.
 
-    Wraps :func:`optional_current_user_dep` and raises when no valid user
-    could be resolved.  Use this on endpoints that must be authenticated.
-
     Args:
-        user: Result of ``optional_current_user_dep``.
+        user: Result of ``_optional_current_user``.
 
     Returns:
-        The authenticated :class:`~strata.plugins.protocols.AuthUser`.
+        The authenticated :class:`~strata.schemas.auth.AuthUser`.
 
     Raises:
-        HTTPException: 401 if no valid bearer token was provided.
+        HTTPException: 401 if no valid session cookie is present.
     """
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
         )
     return user
 
 
-OptionalCurrentUserDep = Annotated[AuthUser | None, Depends(optional_current_user_dep)]
-CurrentUserDep = Annotated[AuthUser, Depends(require_current_user_dep)]
+def session_cookie_helper(response: object, session_id: str, service: SessionService) -> None:
+    """Attach the session cookie to *response*.
+
+    Extracted here so auth plugins can call it without importing FastAPI
+    response internals directly.  Kept in the auth module because cookie
+    attributes are a security concern owned by core, not plugins.
+
+    Args:
+        response: A FastAPI :class:`fastapi.Response` instance.
+        session_id: The opaque session ID to set as the cookie value.
+        service: Unused here but kept in signature for future TTL sync.
+    """
+    # Import here to avoid circular import at module load time.
+    from fastapi import Response  # noqa: PLC0415
+
+    assert isinstance(response, Response)  # noqa: S101
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=session_id,
+        httponly=True,
+        secure=settings.SESSION_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        path="/api",
+        max_age=settings.SESSION_TTL_SECONDS,
+    )
+
+
+def clear_session_cookie(response: object) -> None:
+    """Expire the session cookie on *response* (used on logout).
+
+    Args:
+        response: A FastAPI :class:`fastapi.Response` instance.
+    """
+    from fastapi import Response  # noqa: PLC0415
+
+    assert isinstance(response, Response)  # noqa: S101
+    response.delete_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=settings.SESSION_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        path="/api",
+    )
+
+
+OptionalCurrentUserDep = Annotated[AuthUser | None, Depends(_optional_current_user)]
+CurrentUserDep = Annotated[AuthUser, Depends(_require_current_user)]

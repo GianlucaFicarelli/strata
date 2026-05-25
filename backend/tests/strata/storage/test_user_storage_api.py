@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from strata.db.models import CoreUser
-from strata.dependencies.auth import require_current_user_dep
+from strata.dependencies.auth import _require_current_user
 from strata.dependencies.db import db_session_dep
 from strata.dependencies.registry import storage_template_registry_dep
 from strata.main import app
@@ -71,12 +71,12 @@ async def http_user(
 ) -> AsyncGenerator[AsyncClient]:
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
     user = make_auth_user(core_user, username="alice")
-    app.dependency_overrides[require_current_user_dep] = lambda: user
+    app.dependency_overrides[_require_current_user] = lambda: user
     app.dependency_overrides[storage_template_registry_dep] = lambda: template_registry
     app.dependency_overrides[db_session_dep] = lambda: db_session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
-    app.dependency_overrides.pop(require_current_user_dep, None)
+    app.dependency_overrides.pop(_require_current_user, None)
     app.dependency_overrides.pop(storage_template_registry_dep, None)
     app.dependency_overrides.pop(db_session_dep, None)
 

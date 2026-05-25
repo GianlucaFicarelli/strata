@@ -1,12 +1,14 @@
 /**
  * LoginForm
  * ---------
- * A minimal username/password form that works with any auth provider that
- * uses the OAuth2 password flow (application/x-www-form-urlencoded POST).
+ * Username/password form for the auth_local provider.
  *
  * The active provider's login_url is passed in as a prop so this component
- * knows nothing about auth_jwt specifically.  If multiple providers are
- * registered, a picker is shown so the user can choose.
+ * is not coupled to auth_local specifically — any provider that exposes a
+ * POST endpoint accepting {username, password} JSON will work.
+ *
+ * If multiple providers are registered a picker is shown so the user can
+ * choose which one to use.
  */
 
 import { FolderOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
@@ -72,7 +74,7 @@ export default function LoginForm({ providers }) {
 
         {error && (
           <Alert
-            title={error}
+            message={error}
             type="error"
             showIcon
             style={{ marginBottom: 16 }}
