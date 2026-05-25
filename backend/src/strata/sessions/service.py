@@ -105,7 +105,7 @@ class SessionService:
                 email=payload.get("email"),
                 is_admin=payload.get("is_admin", False),
             )
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError, KeyError:
             L.warning("Malformed session payload for id %r — discarding", session_id)
             await self._redis.delete(_key(session_id))
             return None

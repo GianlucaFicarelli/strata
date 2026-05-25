@@ -2,25 +2,24 @@
 
 import hashlib
 import secrets
+from collections.abc import AsyncIterator
 from datetime import timedelta
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from strata.db.models import CoreInvite, CoreUser
-from strata.dependencies.db import db_session_dep
-from strata.dependencies.auth import _require_current_user
-from strata.main import app
-from strata.sessions.deps import SessionServiceDep
-from strata.sessions.service import SessionService
-from strata.utils import create_uuid, utcnow
+from sqlalchemy.ext.asyncio import AsyncSession
 from strata_auth_local.models import LocalUser
 from strata_auth_local.utils import hash_password
-from tests.conftest import make_admin_auth_user, make_auth_user, make_mock_session_service
 
+from strata.db.models import CoreInvite, CoreUser
+from strata.dependencies.auth import _require_current_user
+from strata.dependencies.db import db_session_dep
+from strata.main import app
+from strata.sessions import deps as sdeps
+from strata.sessions.service import SessionService
+from strata.utils import create_uuid, utcnow
+from tests.conftest import make_admin_auth_user, make_auth_user, make_mock_session_service
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -100,8 +99,6 @@ def mock_session_svc() -> SessionService:
 @pytest.fixture
 def override_deps(db_session: AsyncSession, mock_session_svc: SessionService):
     """Override DB and session deps for all auth_local route tests."""
-    from strata.sessions import deps as sdeps
-
     app.dependency_overrides[db_session_dep] = lambda: db_session
     app.dependency_overrides[sdeps._session_service_dep] = lambda: mock_session_svc
     yield
@@ -111,7 +108,7 @@ def override_deps(db_session: AsyncSession, mock_session_svc: SessionService):
 
 @pytest_asyncio.fixture
 async def http(override_deps) -> AsyncIterator[AsyncClient]:
-    from collections.abc import AsyncIterator
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 

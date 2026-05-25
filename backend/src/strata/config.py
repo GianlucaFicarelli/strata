@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     SESSION_TTL_SECONDS: int = 7 * 86_400  # 7 days; renewed on every request
     SESSION_COOKIE_NAME: str = "strata_session"
-    SESSION_COOKIE_SECURE: bool = True   # set False for local HTTP dev
+    SESSION_COOKIE_SECURE: bool = True  # set False for local HTTP dev
     SESSION_COOKIE_SAMESITE: str = "strict"
 
     # Download token (HMAC-signed, stateless)
@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     ]
 
     @model_validator(mode="after")
-    def _require_encryption_key(self) -> "Settings":
+    def _require_encryption_key(self) -> Settings:
         # Validated lazily at startup once templates are registered.
         # See strata.main for the deferred check.
         return self

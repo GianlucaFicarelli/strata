@@ -66,7 +66,7 @@ class AuthLocalPlugin(BackendPlugin):
     version = "0.1.0"
     description = "Local username/password authentication with invite-only registration."
 
-    def register(self, registry: "PluginRegistry") -> None:
+    def register(self, registry: PluginRegistry) -> None:
         """Register auth provider, DB contributor, and route provider."""
         registry.auth.add(_AuthLocalProvider())
         registry.db.add(_AuthLocalDbContributor())

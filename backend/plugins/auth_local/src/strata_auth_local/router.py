@@ -24,7 +24,7 @@ import secrets
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +40,6 @@ from strata.dependencies.db import AsyncSessionDep
 from strata.sessions.deps import SessionServiceDep
 from strata.sessions.schemas import SessionData
 from strata.utils import create_uuid, utcnow
-
 from strata_auth_local.models import LocalUser
 from strata_auth_local.schemas import (
     InviteAcceptRequest,
@@ -132,9 +131,7 @@ async def login(
     Raises:
         HTTPException: 401 on invalid credentials.
     """
-    result = await db.execute(
-        select(LocalUser).where(LocalUser.username == body.username)
-    )
+    result = await db.execute(select(LocalUser).where(LocalUser.username == body.username))
     local_user = result.scalar_one_or_none()
 
     if local_user is None or not verify_password(body.password, local_user.hashed_password):
@@ -143,9 +140,7 @@ async def login(
             detail="Invalid username or password",
         )
 
-    core_result = await db.execute(
-        select(CoreUser).where(CoreUser.id == local_user.id)
-    )
+    core_result = await db.execute(select(CoreUser).where(CoreUser.id == local_user.id))
     core_user = core_result.scalar_one()
 
     session_id = await session_service.create(_build_session_data(core_user, local_user))

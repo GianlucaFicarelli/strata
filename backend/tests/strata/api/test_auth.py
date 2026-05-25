@@ -8,15 +8,12 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from strata.api.auth import router as auth_router
-from strata.dependencies.auth import _optional_current_user, _require_current_user
 from strata.dependencies.registry import auth_registry_dep
-from strata.dependencies.storage import storage_backend_dep
 from strata.plugins.registry import AuthRegistry
-from strata.schemas.auth import AuthUser
+from strata.sessions import deps as session_deps
 from strata.sessions.deps import SessionServiceDep
 from strata.sessions.schemas import SessionData
 from strata.sessions.service import SessionService
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -104,7 +101,6 @@ async def test_me_with_valid_session_returns_user():
     async def _override_session_service():
         return svc
 
-    from strata.sessions import deps as session_deps
     app.dependency_overrides[session_deps._session_service_dep] = _override_session_service
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -126,7 +122,6 @@ async def test_me_with_expired_session_returns_401():
 
     app = _make_app(_make_auth_registry())
 
-    from strata.sessions import deps as session_deps
     app.dependency_overrides[session_deps._session_service_dep] = lambda: svc
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:

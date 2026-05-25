@@ -12,7 +12,6 @@ tests for it use ``issue_download_token`` directly to generate valid tokens.
 """
 
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -21,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from strata.db.models import CoreUser
+from strata.dependencies import storage as storage_dep
 from strata.dependencies.auth import _require_current_user
 from strata.dependencies.db import db_session_dep
 from strata.dependencies.registry import auth_registry_dep, storage_template_registry_dep
@@ -30,10 +30,8 @@ from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import AuthRegistry, StorageTemplateRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
-from strata.sessions.service import SessionService
 from strata.tokens import issue_download_token
 from tests.conftest import make_auth_user
-
 
 # ── In-memory stub backend ────────────────────────────────────────────────────
 
@@ -236,7 +234,6 @@ async def test_download_with_valid_token(
 
     # For the download endpoint we need resolve_backend_by_ids to work —
     # override it to return our mem_backend directly.
-    from strata.dependencies import storage as storage_dep
 
     async def _fake_resolve(db, *, instance_id, user_id, template_registry):
         return mem_backend

@@ -231,9 +231,7 @@ describe('logout()', () => {
 describe('useAuth() guard', () => {
   it('throws when used outside AuthProvider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => renderHook(() => useAuth())).toThrow(
-      'useAuth must be used inside <AuthProvider>',
-    );
+    expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used inside <AuthProvider>');
     spy.mockRestore();
   });
 });

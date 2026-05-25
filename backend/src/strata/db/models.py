@@ -42,15 +42,15 @@ class CoreUser(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
-    storage_user_configs: Mapped[list["CoreStorageUserConfig"]] = relationship(
+    storage_user_configs: Mapped[list[CoreStorageUserConfig]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    invites_created: Mapped[list["CoreInvite"]] = relationship(
+    invites_created: Mapped[list[CoreInvite]] = relationship(
         foreign_keys="CoreInvite.created_by",
         back_populates="creator",
         cascade="all, delete-orphan",
     )
-    invite_used: Mapped["CoreInvite | None"] = relationship(
+    invite_used: Mapped[CoreInvite | None] = relationship(
         foreign_keys="CoreInvite.used_by",
         back_populates="used_by_user",
     )
@@ -94,10 +94,10 @@ class CoreInvite(Base):
     expires_at: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
-    creator: Mapped["CoreUser"] = relationship(
+    creator: Mapped[CoreUser] = relationship(
         foreign_keys=[created_by], back_populates="invites_created"
     )
-    used_by_user: Mapped["CoreUser | None"] = relationship(
+    used_by_user: Mapped[CoreUser | None] = relationship(
         foreign_keys=[used_by], back_populates="invite_used"
     )
 
@@ -141,7 +141,7 @@ class CoreStorageInstance(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
-    user_configs: Mapped[list["CoreStorageUserConfig"]] = relationship(
+    user_configs: Mapped[list[CoreStorageUserConfig]] = relationship(
         back_populates="instance", cascade="all, delete-orphan"
     )
 
@@ -193,8 +193,8 @@ class CoreStorageUserConfig(Base):
     config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
-    instance: Mapped["CoreStorageInstance"] = relationship(back_populates="user_configs")
-    user: Mapped["CoreUser"] = relationship(back_populates="storage_user_configs")
+    instance: Mapped[CoreStorageInstance] = relationship(back_populates="user_configs")
+    user: Mapped[CoreUser] = relationship(back_populates="storage_user_configs")
 
     def __repr__(self) -> str:
         return (

@@ -23,7 +23,6 @@ from strata.schemas.auth import AuthUser
 from strata.sessions.service import SessionService
 from strata.utils import create_uuid, utcnow
 
-
 # ── Database fixtures ─────────────────────────────────────────────────────────
 
 

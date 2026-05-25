@@ -19,7 +19,12 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.create_table(
         "auth_local_users",
-        sa.Column("id", sa.String(36), sa.ForeignKey("core_users.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column(
+            "id",
+            sa.String(36),
+            sa.ForeignKey("core_users.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
         sa.Column("username", sa.String(255), nullable=False),
         sa.Column("hashed_password", sa.String(255), nullable=False),
     )

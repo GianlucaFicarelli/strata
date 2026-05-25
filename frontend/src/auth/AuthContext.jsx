@@ -37,7 +37,6 @@ export function AuthProvider({ children }) {
   // ── Hydrate on mount ───────────────────────────────────────────────────────
   // The session cookie is sent automatically — no Authorization header needed.
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
       .then((res) => {
@@ -83,9 +82,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
   );
 }
 

@@ -61,9 +61,7 @@ def _signing_key() -> bytes:
         RuntimeError: If ``STRATA_ENCRYPTION_KEY`` is empty.
     """
     if not settings.ENCRYPTION_KEY:
-        raise RuntimeError(
-            "STRATA_ENCRYPTION_KEY must be set to issue download tokens."
-        )
+        raise RuntimeError("STRATA_ENCRYPTION_KEY must be set to issue download tokens.")
     # Simple single-step HKDF-Expand (RFC 5869 §2.3, L=32, no salt needed
     # because the input key is already high-entropy base64).
     ikm = settings.ENCRYPTION_KEY.encode()
@@ -132,7 +130,7 @@ def verify_download_token(token: str) -> tuple[str, str]:
     try:
         payload, sig = token.rsplit(".", 1)
     except ValueError:
-        raise _invalid
+        raise _invalid from None
 
     # Constant-time signature comparison
     expected_sig = _sign(payload)
@@ -144,7 +142,7 @@ def verify_download_token(token: str) -> tuple[str, str]:
         user_id, backend_id, exp_str = payload.split(":")
         exp = int(exp_str)
     except ValueError:
-        raise _invalid
+        raise _invalid from None
 
     if int(time.time()) > exp:
         raise _invalid

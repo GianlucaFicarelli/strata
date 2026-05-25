@@ -9,7 +9,7 @@ Adds one table alongside the core schema:
 """
 
 from sqlalchemy import ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from strata.db.base import Base
 

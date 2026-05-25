@@ -140,9 +140,6 @@ export async function getUserInstanceConfig(instanceId) {
 }
 
 export async function updateUserInstanceConfig(instanceId, data) {
-  const res = await apiFetch(
-    `/api/storage/instances/${instanceId}/me`,
-    jsonOpts('PATCH', data),
-  );
+  const res = await apiFetch(`/api/storage/instances/${instanceId}/me`, jsonOpts('PATCH', data));
   return res.json();
 }

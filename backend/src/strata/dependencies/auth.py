@@ -95,7 +95,7 @@ def session_cookie_helper(response: object, session_id: str, service: SessionSer
     # Import here to avoid circular import at module load time.
     from fastapi import Response  # noqa: PLC0415
 
-    assert isinstance(response, Response)  # noqa: S101
+    assert isinstance(response, Response)
     response.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
         value=session_id,
@@ -115,7 +115,7 @@ def clear_session_cookie(response: object) -> None:
     """
     from fastapi import Response  # noqa: PLC0415
 
-    assert isinstance(response, Response)  # noqa: S101
+    assert isinstance(response, Response)
     response.delete_cookie(
         key=settings.SESSION_COOKIE_NAME,
         httponly=True,
