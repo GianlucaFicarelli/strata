@@ -154,7 +154,7 @@ export default function AdminStoragePage() {
       render: (_, inst) => {
         const tmpl = templates.find((t) => t.plugin_id === inst.plugin_id);
         return (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Text strong>{inst.instance_name}</Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
               {tmpl?.display_name ?? inst.plugin_id}
@@ -242,7 +242,7 @@ export default function AdminStoragePage() {
         onCancel={() => setModalOpen(false)}
         confirmLoading={saving}
         width={560}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form layout="vertical" style={{ marginTop: 16 }}>
           {!editTarget && (
@@ -253,7 +253,7 @@ export default function AdminStoragePage() {
                 options={templates.map((t) => ({
                   value: t.plugin_id,
                   label: (
-                    <Space direction="vertical" size={0}>
+                    <Space orientation="vertical" size={0}>
                       <span>{t.display_name}</span>
                       <Text type="secondary" style={{ fontSize: 11 }}>
                         {t.description}

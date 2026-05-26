@@ -330,7 +330,7 @@ export default function FileBrowser() {
                     onClick={() => (entry.is_dir ? navigate(entry.path) : setPreviewFile(entry))}
                     style={{ background: '#1a1a1a', border: '1px solid #262626' }}
                   >
-                    <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                    <Space orientation="vertical" size={4} style={{ width: '100%' }}>
                       <EntryIcon entry={entry} />
                       <div
                         style={{
