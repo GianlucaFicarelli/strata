@@ -7,12 +7,10 @@ Entry point: ``auth_local = "strata_auth_local:plugin"``
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from strata.plugins.base import BackendPlugin
-
-if TYPE_CHECKING:
-    from strata.plugins.registry import PluginRegistry
+from strata.plugins.registry import PluginRegistry
 
 
 class _AuthLocalProvider:

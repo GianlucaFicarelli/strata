@@ -12,6 +12,8 @@ Tables
     Per-user config overrides and enable/disable state for each instance.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint

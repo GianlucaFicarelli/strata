@@ -2,7 +2,7 @@
 name = "strata-auth-local"
 version = "0.1.0"
 description = "Local username/password authentication plugin for Strata."
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136",
     "pydantic>=2.13",

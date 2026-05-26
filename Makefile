@@ -1,6 +1,6 @@
 # Strata — development Makefile
 #
-# Requires: python 3.14+, uv, node 22+, npm, docker, docker compose
+# Requires: python 3.12+, uv, node 22+, npm, docker, docker compose
 
 .PHONY: help install install-backend install-frontend \
         dev dev-backend dev-frontend \
@@ -12,7 +12,7 @@
         test test-backend test-frontend \
         clean
 
-PYTHON   := python3.14
+PYTHON   := python3.12
 UV       := uv
 BACKEND  := backend
 FRONTEND := frontend

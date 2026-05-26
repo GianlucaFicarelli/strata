@@ -2,7 +2,7 @@
 name = "strata-storage-smb"
 version = "0.1.0"
 description = "SMB/CIFS network share storage backend for Strata."
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "strata>=0.1.0",
     "smbprotocol>=1.13",

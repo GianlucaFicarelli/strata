@@ -2,7 +2,7 @@
 name = "strata-storage-local"
 version = "0.1.0"
 description = "Local filesystem storage backend for Strata."
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "strata>=0.1.0",
     "aiofiles>=24.1",

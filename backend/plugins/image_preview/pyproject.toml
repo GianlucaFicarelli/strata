@@ -2,7 +2,7 @@
 name = "strata-image-preview"
 version = "0.1.0"
 description = "Image thumbnail and preview plugin for Strata."
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "strata>=0.1.0",
     "fastapi>=0.115",

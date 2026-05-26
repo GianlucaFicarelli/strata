@@ -1,7 +1,7 @@
 """Application settings."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     ]
 
     @model_validator(mode="after")
-    def _require_encryption_key(self) -> Settings:
+    def _require_encryption_key(self) -> Self:
         # Validated lazily at startup once templates are registered.
         # See strata.main for the deferred check.
         return self

@@ -156,7 +156,7 @@ backend/plugins/myplugin/
 [project]
 name = "strata-myplugin"
 version = "0.1.0"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = ["strata>=0.1.0"]
 
 [project.entry-points."strata.plugins"]

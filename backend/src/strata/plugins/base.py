@@ -1,11 +1,7 @@
 """Base class for all Strata plugins."""
 
-from typing import TYPE_CHECKING
-
+from strata.plugins.registry import PluginRegistry
 from strata.schemas.common import PluginMeta
-
-if TYPE_CHECKING:
-    from strata.plugins.registry import PluginRegistry
 
 
 class BackendPlugin:
