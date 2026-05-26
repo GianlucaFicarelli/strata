@@ -20,7 +20,6 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from strata.db.models import CoreUser
-from strata.dependencies import storage as storage_dep
 from strata.dependencies.auth import _require_current_user
 from strata.dependencies.db import db_session_dep
 from strata.dependencies.registry import auth_registry_dep, storage_template_registry_dep
@@ -30,6 +29,7 @@ from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import AuthRegistry, StorageTemplateRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
+from strata.storage import service as storage_service
 from strata.tokens import issue_download_token
 from tests.conftest import make_auth_user
 
@@ -235,10 +235,10 @@ async def test_download_with_valid_token(
     # For the download endpoint we need resolve_backend_by_ids to work —
     # override it to return our mem_backend directly.
 
-    async def _fake_resolve(db, *, instance_id, user_id, template_registry):
+    async def _fake_resolve(db, *, instance_id, user_id, username, template_registry):
         return mem_backend
 
-    monkeypatch.setattr(storage_dep, "resolve_backend_by_ids", _fake_resolve)
+    monkeypatch.setattr(storage_service, "resolve_backend_for_user", _fake_resolve)
 
     app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
     app.dependency_overrides[db_session_dep] = lambda: db_session
@@ -248,7 +248,7 @@ async def test_download_with_valid_token(
                 "/api/files/download",
                 params={"path": "/secret.txt", "token": token},
             )
-        assert resp.status_code == 200
+        assert resp.status_code == 200, resp.text
         assert resp.content == b"classified"
     finally:
         app.dependency_overrides.pop(storage_template_registry_dep, None)

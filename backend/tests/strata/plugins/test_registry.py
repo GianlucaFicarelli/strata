@@ -24,7 +24,6 @@ from strata.plugins.registry import (
     StorageRegistry,
     ThumbRegistry,
 )
-from strata.schemas.auth import AuthUser
 from strata.schemas.files import FileEntry
 
 # ── Minimal stubs ─────────────────────────────────────────────────────────────
@@ -63,10 +62,8 @@ class _AuthProvider:
         self.id = id
         self.name = "Test Auth"
 
-    async def authenticate(self, credentials: dict[str, str]) -> AuthUser | None:
-        if credentials.get("username") == "alice":
-            return AuthUser(id="uid-1", username="alice")
-        return None
+    def describe(self) -> dict[str, Any]:
+        return {"id": self.id, "name": self.name}
 
 
 class _SearchProvider:
@@ -171,38 +168,23 @@ def test_route_registry_all_routers():
 # ── AuthRegistry ──────────────────────────────────────────────────────────────
 
 
-async def test_auth_registry_returns_first_match():
+async def test_auth_registry_add():
     reg = AuthRegistry()
     reg.add(_AuthProvider())
-    user = await reg.authenticate({"username": "alice", "password": "x"})
-    assert user is not None
-    assert user.username == "alice"
-
-
-async def test_auth_registry_returns_none_when_no_match():
-    reg = AuthRegistry()
-    reg.add(_AuthProvider())
-    result = await reg.authenticate({"username": "nobody"})
-    assert result is None
 
 
 async def test_auth_registry_tries_providers_in_order():
-    calls: list[str] = []
-
     class Recorder(_AuthProvider):
         def __init__(self, id: str) -> None:  # noqa: A002
             super().__init__(id)
-            self._my_id = id
-
-        async def authenticate(self, credentials: dict[str, str]) -> AuthUser | None:
-            calls.append(self._my_id)
-            return None
 
     reg = AuthRegistry()
     reg.add(Recorder("first"))
-    reg.add(Recorder("second"))
-    await reg.authenticate({})
-    assert calls == ["first", "second"]
+    with pytest.raises(
+        RuntimeError,
+        match=r"Cannot register auth provider 'second': 'first' is already registered.",
+    ):
+        reg.add(Recorder("second"))
 
 
 # ── SearchRegistry ────────────────────────────────────────────────────────────

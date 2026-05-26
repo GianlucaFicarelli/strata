@@ -32,7 +32,7 @@ from strata.config import settings
 from strata.dependencies.auth import CurrentUserDep
 from strata.dependencies.db import AsyncSessionDep
 from strata.dependencies.registry import StorageTemplateRegistryDep
-from strata.dependencies.storage import StorageBackendDep, resolve_backend_by_ids
+from strata.dependencies.storage import StorageBackendDep
 from strata.schemas.files import (
     DirectoryCreateResult,
     DownloadTokenResponse,
@@ -42,6 +42,7 @@ from strata.schemas.files import (
     FileMoveResult,
     FileUploadResult,
 )
+from strata.storage import service as storage_service
 from strata.tokens import issue_download_token, verify_download_token
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -111,10 +112,11 @@ async def download_file(
     """
     user_id, backend_id = verify_download_token(token)
 
-    storage = await resolve_backend_by_ids(
+    storage = await storage_service.resolve_backend_for_user(
         db_session,
         instance_id=backend_id,
         user_id=user_id,
+        username=user_id,
         template_registry=template_registry,
     )
     if storage is None:

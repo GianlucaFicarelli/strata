@@ -11,7 +11,7 @@ from strata.api.auth import router as auth_router
 from strata.dependencies.registry import auth_registry_dep
 from strata.plugins.registry import AuthRegistry
 from strata.sessions import deps as session_deps
-from strata.sessions.deps import SessionServiceDep
+from strata.sessions.deps import _session_service_dep
 from strata.sessions.schemas import SessionData
 from strata.sessions.service import SessionService
 
@@ -84,7 +84,7 @@ async def test_me_without_cookie_returns_401():
     svc.get.return_value = None
 
     app = _make_app(_make_auth_registry())
-    app.dependency_overrides[SessionServiceDep] = lambda: svc  # type: ignore[index]
+    app.dependency_overrides[_session_service_dep] = lambda: svc
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         resp = await c.get("/api/auth/me")

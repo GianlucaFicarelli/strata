@@ -13,7 +13,7 @@ async def test_session_scope_commits_on_success(
 ):
     """A successful block should persist rows."""
     async with session_scope(session_factory) as session:
-        user = CoreUser()
+        user = CoreUser(display_name="test_user")
         session.add(user)
 
     # Re-open a session to verify the row persisted

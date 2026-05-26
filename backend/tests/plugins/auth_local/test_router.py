@@ -7,16 +7,17 @@ from datetime import timedelta
 
 import pytest
 import pytest_asyncio
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from strata_auth_local.models import LocalUser
+from strata_auth_local.router import router as plugin_router
 from strata_auth_local.utils import hash_password
 
 from strata.db.models import CoreInvite, CoreUser
 from strata.dependencies.auth import _require_current_user
 from strata.dependencies.db import db_session_dep
-from strata.main import app
-from strata.sessions import deps as sdeps
+from strata.sessions.deps import _session_service_dep
 from strata.sessions.service import SessionService
 from strata.utils import create_uuid, utcnow
 from tests.conftest import make_admin_auth_user, make_auth_user, make_mock_session_service
@@ -97,19 +98,23 @@ def mock_session_svc() -> SessionService:
 
 
 @pytest.fixture
-def override_deps(db_session: AsyncSession, mock_session_svc: SessionService):
-    """Override DB and session deps for all auth_local route tests."""
-    app.dependency_overrides[db_session_dep] = lambda: db_session
-    app.dependency_overrides[sdeps._session_service_dep] = lambda: mock_session_svc
-    yield
-    app.dependency_overrides.pop(db_session_dep, None)
-    app.dependency_overrides.pop(sdeps._session_service_dep, None)
+async def plugin_app(
+    db_session: AsyncSession,
+    mock_session_svc: SessionService,
+) -> AsyncIterator[FastAPI]:
+    """Minimal FastAPI app with only the the plugin router, wired to the test DB."""
+    fa = FastAPI()
+    fa.include_router(plugin_router)
+    fa.dependency_overrides[db_session_dep] = lambda: db_session
+    fa.dependency_overrides[_session_service_dep] = lambda: mock_session_svc
+    yield fa
+    fa.dependency_overrides.pop(db_session_dep, None)
+    fa.dependency_overrides.pop(_session_service_dep, None)
 
 
-@pytest_asyncio.fixture
-async def http(override_deps) -> AsyncIterator[AsyncClient]:
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+@pytest.fixture
+async def http(plugin_app: FastAPI) -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(transport=ASGITransport(app=plugin_app), base_url="http://test") as c:
         yield c
 
 
@@ -125,7 +130,7 @@ async def test_login_success(
         "/api/plugins/auth_local/login",
         json={"username": "alice", "password": "password123"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["username"] == "alice"
     assert body["display_name"] == "Alice"
@@ -261,41 +266,42 @@ async def test_accept_expired_invite_fails(
 # ── Admin: create invite ──────────────────────────────────────────────────────
 
 
-async def test_create_invite_as_admin(
-    http: AsyncClient,
-    db_session: AsyncSession,
-    admin_user: CoreUser,
-):
+@pytest.fixture
+def override_current_user_with_admin(plugin_app: FastAPI, admin_user: CoreUser):
     admin_auth = make_admin_auth_user(admin_user)
-    app.dependency_overrides[_require_current_user] = lambda: admin_auth
-    try:
-        resp = await http.post(
-            "/api/admin/auth_local/invites",
-            json={"expires_in_hours": 24},
-        )
-        assert resp.status_code == 201
-        body = resp.json()
-        assert "token" in body
-        assert "invite_id" in body
-        assert body["expires_in_hours"] == 24
-    finally:
-        app.dependency_overrides.pop(_require_current_user, None)
+    plugin_app.dependency_overrides[_require_current_user] = lambda: admin_auth
+    yield
+    plugin_app.dependency_overrides.pop(_require_current_user, None)
 
 
-async def test_create_invite_as_non_admin_returns_403(
-    http: AsyncClient,
-    core_user: CoreUser,
-):
+@pytest.fixture
+def override_current_user_with_user(plugin_app: FastAPI, core_user: CoreUser):
     user = make_auth_user(core_user, username="alice", is_admin=False)
-    app.dependency_overrides[_require_current_user] = lambda: user
-    try:
-        resp = await http.post(
-            "/api/admin/auth_local/invites",
-            json={"expires_in_hours": 24},
-        )
-        assert resp.status_code == 403
-    finally:
-        app.dependency_overrides.pop(_require_current_user, None)
+    plugin_app.dependency_overrides[_require_current_user] = lambda: user
+    yield
+    plugin_app.dependency_overrides.pop(_require_current_user, None)
+
+
+@pytest.mark.usefixtures("override_current_user_with_admin")
+async def test_create_invite_as_admin(http: AsyncClient):
+    resp = await http.post(
+        "/api/admin/auth_local/invites",
+        json={"expires_in_hours": 24},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert "token" in body
+    assert "invite_id" in body
+    assert body["expires_in_hours"] == 24
+
+
+@pytest.mark.usefixtures("override_current_user_with_user")
+async def test_create_invite_as_non_admin_returns_403(http: AsyncClient):
+    resp = await http.post(
+        "/api/admin/auth_local/invites",
+        json={"expires_in_hours": 24},
+    )
+    assert resp.status_code == 403
 
 
 async def test_create_invite_unauthenticated(http: AsyncClient):
