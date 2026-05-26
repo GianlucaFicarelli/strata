@@ -97,7 +97,7 @@ def mock_session_svc() -> SessionService:
     return make_mock_session_service()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def plugin_app(
     db_session: AsyncSession,
     mock_session_svc: SessionService,
@@ -112,7 +112,7 @@ async def plugin_app(
     fa.dependency_overrides.pop(_session_service_dep, None)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def http(plugin_app: FastAPI) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(transport=ASGITransport(app=plugin_app), base_url="http://test") as c:
         yield c

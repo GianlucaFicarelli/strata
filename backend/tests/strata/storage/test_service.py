@@ -236,8 +236,6 @@ def test_build_backend_template_expansion(monkeypatch):
 
 
 def test_build_backend_user_editable_overrides_admin(monkeypatch):
-    monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", _test_key())
-
     key = _test_key()
     monkeypatch.setattr("strata.storage.service.settings.ENCRYPTION_KEY", key)
 

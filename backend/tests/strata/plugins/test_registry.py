@@ -168,12 +168,12 @@ def test_route_registry_all_routers():
 # ── AuthRegistry ──────────────────────────────────────────────────────────────
 
 
-async def test_auth_registry_add():
+def test_auth_registry_add():
     reg = AuthRegistry()
     reg.add(_AuthProvider())
 
 
-async def test_auth_registry_tries_providers_in_order():
+def test_auth_registry_tries_providers_in_order():
     class Recorder(_AuthProvider):
         def __init__(self, id: str) -> None:  # noqa: A002
             super().__init__(id)

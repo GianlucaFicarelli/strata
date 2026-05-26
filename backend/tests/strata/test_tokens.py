@@ -1,27 +1,21 @@
 """Unit tests for strata.tokens — HMAC download token signing and verification."""
 
-import importlib
-import time
-
 import pytest
 from fastapi import HTTPException
 
 import strata.config as cfg
-import strata.tokens as tok
 from strata.tokens import issue_download_token, verify_download_token
+
+_TEST_KEY = "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ="
 
 
 @pytest.fixture(autouse=True)
 def set_encryption_key(monkeypatch):
-    monkeypatch.setenv("STRATA_ENCRYPTION_KEY", "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ=")
-    # Force settings reload so the env var is picked up
-    importlib.reload(cfg)
-    importlib.reload(tok)
+    monkeypatch.setattr(cfg.settings, "ENCRYPTION_KEY", _TEST_KEY)
 
 
 def test_round_trip():
     """issue → verify returns the correct (user_id, backend_id)."""
-
     token = issue_download_token(user_id="uid-1", backend_id="bid-2")
     user_id, backend_id = verify_download_token(token)
     assert user_id == "uid-1"
@@ -55,10 +49,11 @@ def test_malformed_token_raises_401():
         verify_download_token("no-dot-separator-at-all")
 
 
-def test_tokens_are_distinct():
-    """Two tokens for the same user+backend issued a second apart differ."""
+def test_tokens_are_distinct(monkeypatch):
+    """Two tokens for the same user+backend issued at different times differ."""
+    times = iter([1_000_000.0, 1_000_001.0])
+    monkeypatch.setattr("strata.tokens.time.time", lambda: next(times))
 
     t1 = issue_download_token("u", "b")
-    time.sleep(1.1)
     t2 = issue_download_token("u", "b")
     assert t1 != t2

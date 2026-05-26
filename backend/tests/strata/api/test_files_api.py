@@ -25,7 +25,6 @@ from strata.dependencies.db import db_session_dep
 from strata.dependencies.registry import auth_registry_dep, storage_template_registry_dep
 from strata.dependencies.storage import storage_backend_dep
 from strata.main import app
-from strata.plugins.protocols import StorageBackend
 from strata.plugins.registry import AuthRegistry, StorageTemplateRegistry
 from strata.schemas.common import StorageMeta
 from strata.schemas.files import FileEntry
@@ -107,9 +106,6 @@ class _MemoryBackend:
         return StorageMeta(id=self.id, name=self.name)
 
 
-_: StorageBackend = _MemoryBackend()  # type: ignore[assignment]
-
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
@@ -124,7 +120,7 @@ def override_storage(
     db_session: AsyncSession,
     core_user: CoreUser,
 ):
-    """Override all file-API deps for test isolation."""
+    """Override all file-API deps for the session-authenticated endpoints."""
     user = make_auth_user(core_user, username="alice")
     empty_template_reg = StorageTemplateRegistry()
     empty_auth = AuthRegistry()
@@ -142,8 +138,58 @@ def override_storage(
     app.dependency_overrides.pop(_require_current_user, None)
 
 
+@pytest.fixture
+def override_download(
+    db_session: AsyncSession,
+    core_user: CoreUser,
+):
+    """Override the minimal deps needed by the token-authenticated download endpoints.
+
+    Does not set storage_backend_dep or _require_current_user — the download
+    path authenticates via an HMAC token and resolves the backend itself via
+    resolve_backend_for_user.
+    """
+    empty_template_reg = StorageTemplateRegistry()
+
+    app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
+    app.dependency_overrides[db_session_dep] = lambda: db_session
+    yield
+    app.dependency_overrides.pop(storage_template_registry_dep, None)
+    app.dependency_overrides.pop(db_session_dep, None)
+
+
+@pytest.fixture
+def override_unknown_backend(
+    db_session: AsyncSession,
+    core_user: CoreUser,
+):
+    """Override deps for the unknown-backend test (session auth, no storage stub)."""
+    user = make_auth_user(core_user, username="alice")
+    empty_template_reg = StorageTemplateRegistry()
+
+    app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
+    app.dependency_overrides[db_session_dep] = lambda: db_session
+    app.dependency_overrides[_require_current_user] = lambda: user
+    yield
+    app.dependency_overrides.pop(storage_template_registry_dep, None)
+    app.dependency_overrides.pop(db_session_dep, None)
+    app.dependency_overrides.pop(_require_current_user, None)
+
+
 @pytest_asyncio.fixture
 async def http(override_storage) -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def http_download(override_download) -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def http_no_backend(override_unknown_backend) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
@@ -206,7 +252,9 @@ async def test_get_download_token_returns_token(
     monkeypatch,
 ):
     """Authenticated request to /download-token returns a signed token."""
-    monkeypatch.setenv("STRATA_ENCRYPTION_KEY", "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ=")
+    monkeypatch.setattr(
+        "strata.tokens.settings.ENCRYPTION_KEY", "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ="
+    )
     resp = await http.get(
         "/api/files/download-token",
         params={"backend": "some-uuid"},
@@ -220,85 +268,55 @@ async def test_get_download_token_returns_token(
 
 async def test_download_with_valid_token(
     mem_backend: _MemoryBackend,
-    db_session: AsyncSession,
     core_user: CoreUser,
+    http_download: AsyncClient,
     monkeypatch,
 ):
     """A valid HMAC token lets the download proceed without a session cookie."""
-    monkeypatch.setenv("STRATA_ENCRYPTION_KEY", "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ=")
+    monkeypatch.setattr(
+        "strata.tokens.settings.ENCRYPTION_KEY", "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ="
+    )
 
     mem_backend._files["/secret.txt"] = b"classified"
     token = issue_download_token(user_id=core_user.id, backend_id="mem")
 
-    empty_template_reg = StorageTemplateRegistry()
-
-    # For the download endpoint we need resolve_backend_by_ids to work —
-    # override it to return our mem_backend directly.
-
-    async def _fake_resolve(db, *, instance_id, user_id, username, template_registry):
+    # Patch resolve_backend_for_user so the download endpoint can find the
+    # in-memory backend without a real DB instance row.
+    async def _fake_resolve(db, instance_id, user_id, username, template_registry):
         return mem_backend
 
     monkeypatch.setattr(storage_service, "resolve_backend_for_user", _fake_resolve)
 
-    app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
-    app.dependency_overrides[db_session_dep] = lambda: db_session
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get(
-                "/api/files/download",
-                params={"path": "/secret.txt", "token": token},
-            )
-        assert resp.status_code == 200, resp.text
-        assert resp.content == b"classified"
-    finally:
-        app.dependency_overrides.pop(storage_template_registry_dep, None)
-        app.dependency_overrides.pop(db_session_dep, None)
+    resp = await http_download.get(
+        "/api/files/download",
+        params={"path": "/secret.txt", "token": token},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.content == b"classified"
 
 
 async def test_download_with_invalid_token_returns_401(
-    db_session: AsyncSession,
+    http_download: AsyncClient,
     monkeypatch,
 ):
     """A tampered or missing token returns 401."""
-    monkeypatch.setenv("STRATA_ENCRYPTION_KEY", "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ=")
-    empty_template_reg = StorageTemplateRegistry()
-
-    app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
-    app.dependency_overrides[db_session_dep] = lambda: db_session
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get(
-                "/api/files/download",
-                params={"path": "/secret.txt", "token": "not.a.valid.token"},
-            )
-        assert resp.status_code == 401
-    finally:
-        app.dependency_overrides.pop(storage_template_registry_dep, None)
-        app.dependency_overrides.pop(db_session_dep, None)
+    monkeypatch.setattr(
+        "strata.tokens.settings.ENCRYPTION_KEY", "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ="
+    )
+    resp = await http_download.get(
+        "/api/files/download",
+        params={"path": "/secret.txt", "token": "not.a.valid.token"},
+    )
+    assert resp.status_code == 401
 
 
 # ── Unknown backend ────────────────────────────────────────────────────────────
 
 
-async def test_unknown_backend_returns_400(
-    db_session: AsyncSession,
-    core_user: CoreUser,
-):
+async def test_unknown_backend_returns_400(http_no_backend: AsyncClient):
     """An unknown instance UUID with an authenticated user returns 400."""
-    user = make_auth_user(core_user, username="alice")
-    empty_template_reg = StorageTemplateRegistry()
-
-    app.dependency_overrides[storage_template_registry_dep] = lambda: empty_template_reg
-    app.dependency_overrides[db_session_dep] = lambda: db_session
-    app.dependency_overrides[_require_current_user] = lambda: user
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get(
-                "/api/files/list",
-                params={"path": "/", "backend": "00000000-0000-0000-0000-000000000000"},
-            )
-        assert resp.status_code == 400
-    finally:
-        app.dependency_overrides.pop(storage_template_registry_dep, None)
-        app.dependency_overrides.pop(db_session_dep, None)
-        app.dependency_overrides.pop(_require_current_user, None)
+    resp = await http_no_backend.get(
+        "/api/files/list",
+        params={"path": "/", "backend": "00000000-0000-0000-0000-000000000000"},
+    )
+    assert resp.status_code == 400
